@@ -13,21 +13,44 @@ This repository implements the complete data layer for NodeSpace, providing pers
 
 ## 📦 Key Features
 
-- **SQLite backend** - Local-first storage with excellent performance
-- **Vector search** - Optimized embedding similarity search
-- **Full-text search** - Traditional keyword-based search capabilities
-- **Schema migration** - Automated database schema updates
-- **Backup/restore** - Data export and import functionality
+- **SurrealDB backend** - Multi-model database (Document + Graph + Vector)
+- **Vector search** - Native vector<float, DIM> embedding similarity search
+- **Graph relationships** - Native RELATE statements for entity connections
+- **Dynamic schemas** - Schema evolution with "ghost properties"
+- **SurrealQL support** - LLM-friendly query language
 
 ## 🔗 Dependencies
 
 - **`nodespace-core-types`** - Data structures and `DataStore` trait interface
-- **SQLite** - Primary database engine
-- **Vector storage library** - For embedding similarity search
+- **SurrealDB** - Multi-model database engine
+- **serde_json** - For flexible content serialization
+
+## 🚀 Getting Started
+
+### **New to NodeSpace? Start Here:**
+1. **Read [NodeSpace System Design](../nodespace-system-design/README.md)** - Understand the full architecture
+2. **Check [Linear workspace](https://linear.app/nodespace)** - Find your current tasks (filter by `nodespace-data-store`)
+3. **Review [Development Workflow](../nodespace-system-design/docs/development-workflow.md)** - Process and procedures
+4. **Study [Key Contracts](../nodespace-system-design/contracts/)** - Interface definitions you'll implement
+5. **See [MVP User Flow](../nodespace-system-design/examples/mvp-user-flow.md)** - What you're building
+
+### **Development Setup:**
+```bash
+# Add to your Cargo.toml
+[dependencies]
+nodespace-data-store = { git = "https://github.com/malibio/nodespace-data-store" }
+
+# Use in your code
+use nodespace_data_store::SurrealDataStore;
+use nodespace_core_types::{DataStore, Node};
+
+let store = SurrealDataStore::new("./data/nodes.db").await?;
+let node = store.store_node(node).await?;
+```
 
 ## 🏗️ Architecture Context
 
-Part of the [NodeSpace system architecture](https://github.com/malibio/nodespace-system-design):
+Part of the [NodeSpace system architecture](../nodespace-system-design/README.md):
 
 1. `nodespace-core-types` - Shared data structures and interfaces
 2. **`nodespace-data-store`** ← **You are here**
@@ -37,30 +60,15 @@ Part of the [NodeSpace system architecture](https://github.com/malibio/nodespace
 6. `nodespace-core-ui` - React components and UI
 7. `nodespace-desktop-app` - Tauri application shell
 
-## 🚀 Getting Started
-
-```bash
-# Add to your Cargo.toml
-[dependencies]
-nodespace-data-store = { git = "https://github.com/malibio/nodespace-data-store" }
-
-# Use in your code
-use nodespace_data_store::SqliteDataStore;
-use nodespace_core_types::{DataStore, Node};
-
-let store = SqliteDataStore::new("./data/nodes.db").await?;
-let node = store.create_node(create_request).await?;
-```
-
 ## 🔄 MVP Implementation
 
-The initial implementation focuses on the core RAG workflow:
+The initial implementation focuses on SurrealDB-native operations:
 
-1. **Create nodes** - Store text content with auto-generated IDs
-2. **Store embeddings** - Persist vector representations for search
-3. **Semantic search** - Find similar content using vector similarity
-4. **Full-text search** - Traditional keyword-based search
-5. **Node retrieval** - Fast access to individual nodes and metadata
+1. **Store nodes** - CREATE statements with serde_json::Value content
+2. **Graph relationships** - RELATE statements between entities
+3. **Vector search** - Native vector<float, DIM> similarity operations
+4. **SurrealQL queries** - Custom query execution
+5. **Node retrieval** - SELECT statements by NodeId
 
 ## 🧪 Testing
 
@@ -75,15 +83,6 @@ cargo run --example create_sample_data
 cargo bench
 ```
 
-## 📋 Development Status
-
-- [ ] Implement `DataStore` trait from core-types
-- [ ] Set up SQLite schema and migrations
-- [ ] Add vector storage implementation
-- [ ] Implement full-text search
-- [ ] Add comprehensive test suite
-- [ ] Performance optimization and benchmarks
-
 ---
 
-**Project Management:** All tasks tracked in [NodeSpace Project](https://github.com/users/malibio/projects/4)
+**Project Management:** All development tasks tracked in [Linear workspace](https://linear.app/nodespace)

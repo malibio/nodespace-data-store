@@ -1,0 +1,18 @@
+[package]
+name = "nodespace-data-store"
+version = "0.1.0"
+edition = "2021"
+description = "Database, persistence, and vector storage for NodeSpace"
+
+[dependencies]
+nodespace-core-types = { path = "../nodespace-core-types" }
+surrealdb = { version = "1.5", features = ["kv-mem", "kv-rocksdb"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+async-trait = "0.1"
+thiserror = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+
+[dev-dependencies]
+tokio-test = "0.4"
