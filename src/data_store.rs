@@ -421,7 +421,7 @@ impl SurrealDataStore {
 
         // Create relationship if parent date exists
         if let Some(date_value) = parent_date_value {
-            let from_thing = format!("date:{}", date_value);
+            let from_thing = format!("date:`{}`", date_value);
             let to_thing = format!("text:{}", node_id.as_str().replace("-", "_"));
             let relate_query = format!("RELATE {}->contains->{}", from_thing, to_thing);
 
@@ -438,7 +438,7 @@ impl SurrealDataStore {
     /// Get all text nodes for a specific date
     pub async fn get_nodes_for_date(&self, date_value: &str) -> NodeSpaceResult<Vec<Node>> {
         // Use direct date ID lookup - no need to search by date_value field
-        let date_thing = format!("date:{}", date_value);
+        let date_thing = format!("date:`{}`", date_value);
         
         // Query text nodes that have a relationship from this date node
         let text_query = format!(
@@ -474,7 +474,7 @@ impl SurrealDataStore {
         &self,
         date_value: &str,
     ) -> NodeSpaceResult<Vec<serde_json::Value>> {
-        let from_thing = format!("date:{}", date_value);
+        let from_thing = format!("date:`{}`", date_value);
         let query = format!(
             "SELECT * FROM {}->contains",
             from_thing
@@ -485,28 +485,6 @@ impl SurrealDataStore {
         Ok(values)
     }
 
-    /// Helper method to extract node ID from SurrealDB value (for date nodes)
-    fn extract_node_id_from_value(&self, id_val: &serde_json::Value) -> String {
-        if let Some(id_obj) = id_val.as_object() {
-            // Handle nested SurrealDB Thing structure: {"tb": "date", "id": {"String": "date-value"}}
-            if let Some(id_inner) = id_obj.get("id") {
-                if let Some(string_obj) = id_inner.as_object() {
-                    if let Some(date_str) = string_obj.get("String") {
-                        if let Some(date_value) = date_str.as_str() {
-                            return date_value.to_string();
-                        }
-                    }
-                }
-            }
-        } else if let Some(id_str) = id_val.as_str() {
-            // Handle simple string format
-            if let Some(stripped) = id_str.strip_prefix("date:") {
-                return stripped.to_string();
-            }
-            return id_str.to_string();
-        }
-        String::new()
-    }
 
     /// Helper method to extract node ID from text table SurrealDB value
     fn extract_node_id_from_text_value(&self, id_val: Option<&serde_json::Value>) -> String {
