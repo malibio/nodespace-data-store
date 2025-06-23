@@ -118,8 +118,7 @@ impl DataStore for SurrealDataStore {
             .map_err(DataStoreError::from)?;
 
         // Take the first result and convert to Vec<Node>
-        let values: Vec<serde_json::Value> =
-            result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
 
         let mut nodes = Vec::new();
         for value in values {
@@ -203,8 +202,7 @@ impl DataStore for SurrealDataStore {
             .map_err(DataStoreError::from)?;
 
         // Extract the relationship ID from the result
-        let _value: surrealdb::sql::Value =
-            result.take(0).map_err(DataStoreError::Database)?;
+        let _value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::Database)?;
 
         Ok(())
     }
@@ -249,8 +247,7 @@ impl DataStore for SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let values: Vec<serde_json::Value> =
-            result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
 
         let mut results = Vec::new();
         for value in values {
@@ -354,11 +351,157 @@ impl SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let value: surrealdb::sql::Value =
-            result.take(0).map_err(DataStoreError::Database)?;
+        let value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::Database)?;
 
         let json = serde_json::to_value(&value).map_err(DataStoreError::from)?;
 
         Ok(json)
+    }
+
+    /// Create or get a date node for hierarchical organization
+    pub async fn create_or_get_date_node(
+        &self,
+        date_value: &str,
+        description: Option<&str>,
+    ) -> NodeSpaceResult<NodeId> {
+        // Check if date node already exists
+        let query = format!("SELECT * FROM date WHERE date_value = '{}'", date_value);
+        let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
+        let existing: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+
+        if !existing.is_empty() {
+            // Extract existing node ID
+            if let Some(node_data) = existing.first().and_then(|v| v.as_object()) {
+                if let Some(id_val) = node_data.get("id") {
+                    let id_str = self.extract_node_id_from_value(id_val);
+                    return Ok(NodeId::from_string(id_str));
+                }
+            }
+        }
+
+        // Create new date node
+        let node_id = NodeId::new();
+        let date_data = serde_json::json!({
+            "date_value": date_value,
+            "description": description.unwrap_or(""),
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "updated_at": chrono::Utc::now().to_rfc3339()
+        });
+
+        let thing_id = ("date", node_id.as_str().replace("-", "_"));
+        let _: Option<serde_json::Value> = self
+            .db
+            .create(thing_id)
+            .content(date_data)
+            .await
+            .map_err(DataStoreError::from)?;
+
+        Ok(node_id)
+    }
+
+    /// Create a text node with hierarchical parent relationship
+    pub async fn create_text_node(
+        &self,
+        content: &str,
+        parent_node_id: Option<&NodeId>,
+    ) -> NodeSpaceResult<NodeId> {
+        let node_id = NodeId::new();
+        let text_data = serde_json::json!({
+            "content": content,
+            "parent_node": parent_node_id.map(|id| format!("nodes:{}", id.as_str().replace("-", "_"))),
+            "created_at": chrono::Utc::now().to_rfc3339(),
+            "updated_at": chrono::Utc::now().to_rfc3339()
+        });
+
+        let thing_id = ("text", node_id.as_str().replace("-", "_"));
+        let _: Option<serde_json::Value> = self
+            .db
+            .create(thing_id)
+            .content(text_data)
+            .await
+            .map_err(DataStoreError::from)?;
+
+        // Create relationship if parent exists
+        if let Some(parent_id) = parent_node_id {
+            let from_thing = format!("date:{}", parent_id.as_str().replace("-", "_"));
+            let to_thing = format!("text:{}", node_id.as_str().replace("-", "_"));
+            let relate_query = format!("RELATE {}->contains->{}", from_thing, to_thing);
+
+            let mut _result = self
+                .db
+                .query(relate_query)
+                .await
+                .map_err(DataStoreError::from)?;
+        }
+
+        Ok(node_id)
+    }
+
+    /// Get all text nodes for a specific date
+    pub async fn get_nodes_for_date(&self, date_value: &str) -> NodeSpaceResult<Vec<Node>> {
+        // First get the date node ID, then get related text nodes
+        let date_query = format!("SELECT * FROM date WHERE date_value = '{}'", date_value);
+        let mut result = self.db.query(date_query).await.map_err(DataStoreError::from)?;
+        let date_nodes: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+        
+        if date_nodes.is_empty() {
+            return Ok(Vec::new());
+        }
+        
+        // Extract the date node ID
+        if let Some(date_node) = date_nodes.first().and_then(|v| v.as_object()) {
+            if let Some(id_val) = date_node.get("id") {
+                let date_id = self.extract_node_id_from_value(id_val);
+                let date_thing = format!("date:{}", date_id.replace("-", "_"));
+                
+                // Query text nodes that have a relationship from this date node
+                let text_query = format!(
+                    "SELECT * FROM text WHERE id IN (SELECT ->contains->id FROM {})",
+                    date_thing
+                );
+                return self.query_nodes(&text_query).await;
+            }
+        }
+        
+        Ok(Vec::new())
+    }
+
+    /// Get all children of a date node (hierarchical query)
+    pub async fn get_date_children(
+        &self,
+        date_node_id: &NodeId,
+    ) -> NodeSpaceResult<Vec<serde_json::Value>> {
+        let from_thing = format!("date:{}", date_node_id.as_str().replace("-", "_"));
+        let query = format!(
+            "SELECT * FROM text WHERE id IN (SELECT ->contains->id FROM {})",
+            from_thing
+        );
+
+        let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+        Ok(values)
+    }
+
+    /// Helper method to extract node ID from SurrealDB value
+    fn extract_node_id_from_value(&self, id_val: &serde_json::Value) -> String {
+        if let Some(id_obj) = id_val.as_object() {
+            // Handle nested SurrealDB Thing structure: {"tb": "date", "id": {"String": "uuid"}}
+            if let Some(id_inner) = id_obj.get("id") {
+                if let Some(string_obj) = id_inner.as_object() {
+                    if let Some(uuid_str) = string_obj.get("String") {
+                        if let Some(uuid) = uuid_str.as_str() {
+                            return uuid.replace("_", "-");
+                        }
+                    }
+                }
+            }
+        } else if let Some(id_str) = id_val.as_str() {
+            // Handle simple string format
+            if let Some(stripped) = id_str.strip_prefix("date:") {
+                return stripped.replace("_", "-");
+            }
+            return id_str.to_string();
+        }
+        String::new()
     }
 }
