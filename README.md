@@ -1,3 +1,10 @@
+# ⚠️ BEFORE STARTING ANY WORK
+👉 **STEP 1**: Read development workflow: `../nodespace-system-design/docs/development-workflow.md`
+👉 **STEP 2**: Check Linear for assigned tasks
+👉 **STEP 3**: Repository-specific patterns below
+
+**This README.md only contains**: Repository-specific SurrealDB and database patterns
+
 # NodeSpace Data Store
 
 **Database, persistence, and vector storage for NodeSpace**
@@ -21,18 +28,24 @@ This repository implements the complete data layer for NodeSpace, providing pers
 
 ## 🔗 Dependencies
 
-- **`nodespace-core-types`** - Data structures and `DataStore` trait interface
+- **`nodespace-core-types`** - Shared data structures (NodeId, Node, NodeSpaceResult)
 - **SurrealDB** - Multi-model database engine
 - **serde_json** - For flexible content serialization
+
+## 🏗️ Interface Ownership
+
+This repository **owns the `DataStore` trait** as part of NodeSpace's distributed contract architecture:
+- **Exports**: `DataStore` trait interface for other services to import
+- **Implements**: Complete SurrealDB-based data persistence layer
+- **Distributed pattern**: Other repositories import `use nodespace_data_store::DataStore;`
 
 ## 🚀 Getting Started
 
 ### **New to NodeSpace? Start Here:**
-1. **Read [NodeSpace System Design](../nodespace-system-design/README.md)** - Understand the full architecture
-2. **Check [Linear workspace](https://linear.app/nodespace)** - Find your current tasks (filter by `nodespace-data-store`)
-3. **Review [Development Workflow](../nodespace-system-design/docs/development-workflow.md)** - Process and procedures
-4. **Study [Key Contracts](../nodespace-system-design/contracts/)** - Interface definitions you'll implement
-5. **See [MVP User Flow](../nodespace-system-design/examples/mvp-user-flow.md)** - What you're building
+1. **📖 System Context**: Read [NodeSpace System Design](../nodespace-system-design) for complete architecture
+2. **📋 Current Work**: Check [Linear workspace](https://linear.app/nodespace) for tasks (filter: `nodespace-data-store`)
+3. **🤖 Development**: See [CLAUDE.md](./CLAUDE.md) for autonomous development workflow
+4. **🎯 MVP Goal**: Enable text node storage and RAG query context retrieval
 
 ### **Development Setup:**
 ```bash
