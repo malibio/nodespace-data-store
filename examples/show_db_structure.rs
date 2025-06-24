@@ -1,4 +1,4 @@
-use nodespace_data_store::{SurrealDataStore, DataStore};
+use nodespace_data_store::{DataStore, SurrealDataStore};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,10 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Show raw date records with actual date values
     println!("DATE RECORDS:");
-    let date_results = store.query_nodes("SELECT * FROM date WHERE date_value IS NOT NULL LIMIT 2").await?;
+    let date_results = store
+        .query_nodes("SELECT * FROM date WHERE date_value IS NOT NULL LIMIT 2")
+        .await?;
     for (i, node) in date_results.iter().enumerate() {
         println!("{}. date:{}", i + 1, node.id.as_str().replace("-", "_"));
-        
+
         // The date_value is stored in metadata, not content
         if let Some(metadata) = &node.metadata {
             if let Some(date_val) = metadata.get("date_value") {
@@ -50,14 +52,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let test_date = "2025-05-01";
     println!("COMPLETE EXAMPLE for {}:", test_date);
     let children = store.get_nodes_for_date(test_date).await?;
-    
+
     if !children.is_empty() {
         println!("date:2025_05_01_uuid");
         println!("├── date_value: \"{}\"", test_date);
         println!("└── contains relationships to:");
-        
+
         for (i, child) in children.iter().enumerate() {
-            let prefix = if i == children.len() - 1 { "    └──" } else { "    ├──" };
+            let prefix = if i == children.len() - 1 {
+                "    └──"
+            } else {
+                "    ├──"
+            };
             println!("{} text:{}", prefix, child.id.as_str().replace("-", "_"));
             if let Some(content_str) = child.content.as_str() {
                 let truncated = if content_str.len() > 80 {

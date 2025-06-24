@@ -1,4 +1,4 @@
-use nodespace_data_store::{SurrealDataStore, DataStore};
+use nodespace_data_store::{DataStore, SurrealDataStore};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -23,7 +23,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     for date in test_dates {
         println!("\n=== Content for {} via get_nodes_for_date ===", date);
         let nodes = store.get_nodes_for_date(date).await?;
-        
+
         if nodes.is_empty() {
             println!("No nodes found for this date");
         } else {

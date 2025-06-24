@@ -1,4 +1,4 @@
-use nodespace_data_store::{SurrealDataStore, DataStore};
+use nodespace_data_store::{DataStore, SurrealDataStore};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -12,7 +12,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         format!("SELECT * FROM date:`{}`", test_date),
         format!("SELECT * FROM date:`{}`->contains", test_date),
         format!("SELECT * FROM date:`{}`->contains->text", test_date),
-        format!("SELECT * FROM date:`{}`->contains->(text,task,note)", test_date),
+        format!(
+            "SELECT * FROM date:`{}`->contains->(text,task,note)",
+            test_date
+        ),
     ];
 
     for query in queries {
@@ -21,7 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             Ok(nodes) => {
                 println!("Results: {} items", nodes.len());
                 for (i, node) in nodes.iter().enumerate() {
-                    if i < 2 { // Show first 2 results
+                    if i < 2 {
+                        // Show first 2 results
                         println!("  [{}] ID: {:?}", i, node.id);
                         if let Some(content) = node.content.as_str() {
                             let preview = if content.len() > 60 {
@@ -43,12 +47,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Test the helper methods
     println!("\n--- Testing helper methods ---");
-    
+
     let date_children = store.get_date_children(test_date).await?;
-    println!("get_date_children('{}'): {} items", test_date, date_children.len());
+    println!(
+        "get_date_children('{}'): {} items",
+        test_date,
+        date_children.len()
+    );
 
     let text_nodes = store.get_nodes_for_date(test_date).await?;
-    println!("get_nodes_for_date('{}'): {} text nodes", test_date, text_nodes.len());
+    println!(
+        "get_nodes_for_date('{}'): {} text nodes",
+        test_date,
+        text_nodes.len()
+    );
 
     Ok(())
 }
