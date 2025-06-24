@@ -91,17 +91,14 @@ impl DataStore for SurrealDataStore {
 
         match result {
             Some(data) => {
-                let node = Node {
-                    id: id.clone(),
-                    content: data["content"].clone(),
-                    metadata: if data["metadata"].is_null() {
-                        None
-                    } else {
-                        Some(data["metadata"].clone())
-                    },
-                    created_at: data["created_at"].as_str().unwrap_or("").to_string(),
-                    updated_at: data["updated_at"].as_str().unwrap_or("").to_string(),
-                };
+                let mut node = Node::with_id(id.clone(), data["content"].clone());
+                if let Some(metadata) = data.get("metadata").filter(|v| !v.is_null()) {
+                    node = node.with_metadata(metadata.clone());
+                }
+                // Set timestamps from database
+                node.created_at = data["created_at"].as_str().unwrap_or("").to_string();
+                node.updated_at = data["updated_at"].as_str().unwrap_or("").to_string();
+                // Sibling pointers default to None (not stored in current schema)
                 Ok(Some(node))
             }
             None => Ok(None),
@@ -166,24 +163,30 @@ impl DataStore for SurrealDataStore {
                     continue;
                 };
 
-                let node = Node {
-                    id: NodeId::from_string(id_str.to_string()),
-                    content: node_data
-                        .get("content")
-                        .cloned()
-                        .unwrap_or(serde_json::Value::Null),
-                    metadata: node_data.get("metadata").cloned(),
-                    created_at: node_data
-                        .get("created_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    updated_at: node_data
-                        .get("updated_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                };
+                let content = node_data
+                    .get("content")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                
+                let mut node = Node::with_id(NodeId::from_string(id_str.to_string()), content);
+                
+                if let Some(metadata) = node_data.get("metadata") {
+                    node = node.with_metadata(metadata.clone());
+                }
+                
+                // Set timestamps from database
+                node.created_at = node_data
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                node.updated_at = node_data
+                    .get("updated_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                
+                // Sibling pointers default to None (not stored in current schema)
                 nodes.push(node);
             }
         }
@@ -300,24 +303,30 @@ impl DataStore for SurrealDataStore {
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0) as f32;
 
-                let node = Node {
-                    id: NodeId::from_string(id_str.to_string()),
-                    content: node_data
-                        .get("content")
-                        .cloned()
-                        .unwrap_or(serde_json::Value::Null),
-                    metadata: node_data.get("metadata").cloned(),
-                    created_at: node_data
-                        .get("created_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    updated_at: node_data
-                        .get("updated_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                };
+                let content = node_data
+                    .get("content")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                
+                let mut node = Node::with_id(NodeId::from_string(id_str.to_string()), content);
+                
+                if let Some(metadata) = node_data.get("metadata") {
+                    node = node.with_metadata(metadata.clone());
+                }
+                
+                // Set timestamps from database
+                node.created_at = node_data
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                node.updated_at = node_data
+                    .get("updated_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                
+                // Sibling pointers default to None (not stored in current schema)
 
                 results.push((node, score));
             }
@@ -404,24 +413,30 @@ impl DataStore for SurrealDataStore {
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0) as f32;
 
-                let node = Node {
-                    id: NodeId::from_string(id_str.to_string()),
-                    content: node_data
-                        .get("content")
-                        .cloned()
-                        .unwrap_or(serde_json::Value::Null),
-                    metadata: node_data.get("metadata").cloned(),
-                    created_at: node_data
-                        .get("created_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    updated_at: node_data
-                        .get("updated_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                };
+                let content = node_data
+                    .get("content")
+                    .cloned()
+                    .unwrap_or(serde_json::Value::Null);
+                
+                let mut node = Node::with_id(NodeId::from_string(id_str.to_string()), content);
+                
+                if let Some(metadata) = node_data.get("metadata") {
+                    node = node.with_metadata(metadata.clone());
+                }
+                
+                // Set timestamps from database
+                node.created_at = node_data
+                    .get("created_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                node.updated_at = node_data
+                    .get("updated_at")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                
+                // Sibling pointers default to None (not stored in current schema)
 
                 results.push((node, score));
             }
@@ -549,25 +564,19 @@ impl SurrealDataStore {
             if let Some(text_data) = value.as_object() {
                 // Convert text record to Node format
                 let id_str = self.extract_node_id_from_text_value(text_data.get("id"));
-
-                let node = Node {
-                    id: NodeId::from_string(id_str),
-                    content: text_data
-                        .get("content")
-                        .cloned()
-                        .unwrap_or(serde_json::Value::Null),
-                    metadata: text_data.get("metadata").cloned(),
-                    created_at: text_data
-                        .get("created_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                    updated_at: text_data
-                        .get("updated_at")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("")
-                        .to_string(),
-                };
+                let content = text_data.get("content").cloned().unwrap_or(serde_json::Value::Null);
+                
+                let mut node = Node::with_id(NodeId::from_string(id_str), content);
+                
+                if let Some(metadata) = text_data.get("metadata") {
+                    node = node.with_metadata(metadata.clone());
+                }
+                
+                // Set timestamps from database
+                node.created_at = text_data.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                node.updated_at = text_data.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                
+                // Sibling pointers default to None (not stored in current schema)
                 nodes.push(node);
             }
         }
