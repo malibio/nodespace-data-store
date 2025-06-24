@@ -151,3 +151,67 @@ async fn test_update_node_embedding() {
     let (found_node, _score) = &similar_nodes[0];
     assert_eq!(found_node.id, node_id);
 }
+
+#[tokio::test]
+async fn test_semantic_search_with_embedding() {
+    let store = SurrealDataStore::new("memory").await.unwrap();
+
+    let node1_id = NodeId::new();
+    let node1 = Node::with_id(
+        node1_id.clone(),
+        serde_json::json!("AI and machine learning fundamentals"),
+    );
+
+    let node2_id = NodeId::new();
+    let node2 = Node::with_id(
+        node2_id.clone(),
+        serde_json::json!("Database management systems"),
+    );
+
+    let node3_id = NodeId::new();
+    let node3 = Node::with_id(
+        node3_id.clone(),
+        serde_json::json!("Neural networks and deep learning"),
+    );
+
+    // Sample embeddings representing semantic similarity
+    let ai_embedding = vec![0.9, 0.8, 0.1, 0.2, 0.1]; // AI-related
+    let db_embedding = vec![0.1, 0.2, 0.9, 0.8, 0.1]; // Database-related
+    let ml_embedding = vec![0.8, 0.9, 0.1, 0.1, 0.2]; // ML-related (similar to AI)
+
+    // Store nodes with embeddings
+    store
+        .store_node_with_embedding(node1, ai_embedding.clone())
+        .await
+        .unwrap();
+    store
+        .store_node_with_embedding(node2, db_embedding.clone())
+        .await
+        .unwrap();
+    store
+        .store_node_with_embedding(node3, ml_embedding.clone())
+        .await
+        .unwrap();
+
+    // Search using the new semantic_search_with_embedding method
+    let query_embedding = vec![0.85, 0.85, 0.1, 0.15, 0.15]; // Should be closest to AI/ML nodes
+    let search_results = store
+        .semantic_search_with_embedding(query_embedding, 2)
+        .await
+        .unwrap();
+
+    // Should find 2 results
+    assert_eq!(search_results.len(), 2);
+
+    // Results should be ordered by similarity score (descending)
+    let (_first_result, first_score) = &search_results[0];
+    let (_second_result, second_score) = &search_results[1];
+
+    // First score should be higher than second
+    assert!(first_score >= second_score);
+
+    // Should find AI/ML related content, not database content
+    let found_ids: Vec<&NodeId> = search_results.iter().map(|(node, _)| &node.id).collect();
+    assert!(found_ids.contains(&&node1_id) || found_ids.contains(&&node3_id));
+    assert!(!found_ids.contains(&&node2_id)); // Database content should be less similar
+}
