@@ -31,6 +31,13 @@ pub trait DataStore {
         limit: usize,
     ) -> NodeSpaceResult<Vec<(Node, f32)>>;
     async fn update_node_embedding(&self, id: &NodeId, embedding: Vec<f32>) -> NodeSpaceResult<()>;
+
+    // Semantic search with provided embedding vector
+    async fn semantic_search_with_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>>;
 }
 
 pub struct SurrealDataStore {
@@ -336,6 +343,92 @@ impl DataStore for SurrealDataStore {
 
         Ok(())
     }
+
+    async fn semantic_search_with_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // Use SurrealDB's vector search functionality for semantic search
+        let query = format!(
+            "SELECT *, vector::similarity::cosine(embedding, {}) AS score FROM nodes WHERE embedding IS NOT NULL ORDER BY score DESC LIMIT {}",
+            serde_json::to_string(&embedding).map_err(DataStoreError::from)?,
+            limit
+        );
+
+        let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
+
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+
+        let mut results = Vec::new();
+        for value in values {
+            if let Some(node_data) = value.as_object() {
+                // Extract node ID and score - handle SurrealDB Thing format
+                let id_str = if let Some(id_val) = node_data.get("id") {
+                    if let Some(id_obj) = id_val.as_object() {
+                        // Handle nested SurrealDB Thing structure: {"tb": "nodes", "id": {"String": "uuid"}}
+                        if let Some(id_inner) = id_obj.get("id") {
+                            if let Some(string_obj) = id_inner.as_object() {
+                                if let Some(uuid_str) = string_obj.get("String") {
+                                    if let Some(uuid) = uuid_str.as_str() {
+                                        // Convert underscores back to hyphens for UUID format
+                                        uuid.replace("_", "-")
+                                    } else {
+                                        String::new()
+                                    }
+                                } else {
+                                    String::new()
+                                }
+                            } else {
+                                String::new()
+                            }
+                        } else {
+                            String::new()
+                        }
+                    } else if let Some(id_str) = id_val.as_str() {
+                        // Handle simple string format
+                        if let Some(stripped) = id_str.strip_prefix("nodes:") {
+                            stripped.replace("_", "-")
+                        } else {
+                            id_str.to_string()
+                        }
+                    } else {
+                        String::new()
+                    }
+                } else {
+                    continue;
+                };
+
+                let score = node_data
+                    .get("score")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0) as f32;
+
+                let node = Node {
+                    id: NodeId::from_string(id_str.to_string()),
+                    content: node_data
+                        .get("content")
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null),
+                    metadata: node_data.get("metadata").cloned(),
+                    created_at: node_data
+                        .get("created_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    updated_at: node_data
+                        .get("updated_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                };
+
+                results.push((node, score));
+            }
+        }
+
+        Ok(results)
+    }
 }
 
 impl SurrealDataStore {
@@ -366,7 +459,7 @@ impl SurrealDataStore {
     ) -> NodeSpaceResult<NodeId> {
         // Use date value directly as the record ID
         let thing_id = ("date", date_value);
-        
+
         // Check if date node already exists by trying to select it
         let existing: Option<serde_json::Value> = self
             .db
@@ -439,33 +532,46 @@ impl SurrealDataStore {
     pub async fn get_nodes_for_date(&self, date_value: &str) -> NodeSpaceResult<Vec<Node>> {
         // Use direct date ID lookup - no need to search by date_value field
         let date_thing = format!("date:`{}`", date_value);
-        
+
         // Query text nodes that have a relationship from this date node
-        let text_query = format!(
-            "SELECT * FROM {}->contains->text",
-            date_thing
-        );
-        
-        let mut text_result = self.db.query(text_query).await.map_err(DataStoreError::from)?;
-        let text_values: Vec<serde_json::Value> = text_result.take(0).map_err(DataStoreError::Database)?;
-        
+        let text_query = format!("SELECT * FROM {}->contains->text", date_thing);
+
+        let mut text_result = self
+            .db
+            .query(text_query)
+            .await
+            .map_err(DataStoreError::from)?;
+        let text_values: Vec<serde_json::Value> =
+            text_result.take(0).map_err(DataStoreError::Database)?;
+
         let mut nodes = Vec::new();
         for value in text_values {
             if let Some(text_data) = value.as_object() {
                 // Convert text record to Node format
                 let id_str = self.extract_node_id_from_text_value(text_data.get("id"));
-                
+
                 let node = Node {
                     id: NodeId::from_string(id_str),
-                    content: text_data.get("content").cloned().unwrap_or(serde_json::Value::Null),
+                    content: text_data
+                        .get("content")
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Null),
                     metadata: text_data.get("metadata").cloned(),
-                    created_at: text_data.get("created_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    updated_at: text_data.get("updated_at").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    created_at: text_data
+                        .get("created_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    updated_at: text_data
+                        .get("updated_at")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
                 };
                 nodes.push(node);
             }
         }
-        
+
         Ok(nodes)
     }
 
@@ -475,16 +581,12 @@ impl SurrealDataStore {
         date_value: &str,
     ) -> NodeSpaceResult<Vec<serde_json::Value>> {
         let from_thing = format!("date:`{}`", date_value);
-        let query = format!(
-            "SELECT * FROM {}->contains",
-            from_thing
-        );
+        let query = format!("SELECT * FROM {}->contains", from_thing);
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
         let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
         Ok(values)
     }
-
 
     /// Helper method to extract node ID from text table SurrealDB value
     fn extract_node_id_from_text_value(&self, id_val: Option<&serde_json::Value>) -> String {

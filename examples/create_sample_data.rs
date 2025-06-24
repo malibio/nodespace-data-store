@@ -1,5 +1,5 @@
+use chrono::{DateTime, Datelike, Duration, Utc};
 use nodespace_data_store::SurrealDataStore;
-use chrono::{DateTime, Utc, Duration, Datelike};
 use rand::prelude::*;
 
 #[tokio::main]
@@ -11,16 +11,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let store = SurrealDataStore::new("./data/sample.db").await?;
 
     // Generate sample data across ~100 days (March 15 - June 23, 2025) with ~3 entries per day
-    let start_date = DateTime::parse_from_rfc3339("2025-03-15T00:00:00Z").unwrap().with_timezone(&Utc);
-    let end_date = DateTime::parse_from_rfc3339("2025-06-23T00:00:00Z").unwrap().with_timezone(&Utc);
-    
+    let start_date = DateTime::parse_from_rfc3339("2025-03-15T00:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+    let end_date = DateTime::parse_from_rfc3339("2025-06-23T00:00:00Z")
+        .unwrap()
+        .with_timezone(&Utc);
+
     let mut rng = thread_rng();
     let mut current_date = start_date;
     let mut total_entries = 0;
 
     while current_date <= end_date {
         let date_str = current_date.format("%Y-%m-%d").to_string();
-        
+
         // Skip some days randomly to make it more realistic (weekends, etc.)
         if rng.gen_bool(0.15) {
             current_date = current_date + Duration::days(1);
@@ -29,12 +33,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Generate 2-4 entries per active day
         let entries_count = rng.gen_range(2..=4);
-        
+
         // Create date node with contextual description
-        let _date_node = store.create_or_get_date_node(
-            &date_str, 
-            Some(&get_date_context(&current_date, &mut rng))
-        ).await?;
+        let _date_node = store
+            .create_or_get_date_node(&date_str, Some(&get_date_context(&current_date, &mut rng)))
+            .await?;
 
         // Generate diverse content for this date
         for _ in 0..entries_count {
@@ -56,7 +59,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("June 1st nodes: {}", june_nodes.len());
 
     println!("\nComprehensive sample marketing data created successfully!");
-    println!("Generated {} entries across ~100 days with hierarchical relationships", total_entries);
+    println!(
+        "Generated {} entries across ~100 days with hierarchical relationships",
+        total_entries
+    );
     println!("Data spans from March 15, 2025 to June 23, 2025");
 
     Ok(())
@@ -64,19 +70,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn get_date_context(date: &DateTime<Utc>, rng: &mut ThreadRng) -> String {
     let contexts = vec![
-        "Campaign Planning", "Client Meetings", "Team Strategy", "Content Sprint",
-        "Market Research", "Analytics Review", "Creative Sessions", "Budget Planning",
-        "Competitive Analysis", "Product Launch", "Webinar Prep", "Social Media Planning",
-        "Email Campaigns", "Lead Generation", "Brand Strategy", "Partnership Meetings",
-        "Industry Events", "Content Creation", "Data Analysis", "Strategy Review",
-        "Customer Research", "Performance Review", "Innovation Workshop", "Team Sync",
-        "Stakeholder Updates", "Creative Review", "Campaign Optimization", "Trend Analysis"
+        "Campaign Planning",
+        "Client Meetings",
+        "Team Strategy",
+        "Content Sprint",
+        "Market Research",
+        "Analytics Review",
+        "Creative Sessions",
+        "Budget Planning",
+        "Competitive Analysis",
+        "Product Launch",
+        "Webinar Prep",
+        "Social Media Planning",
+        "Email Campaigns",
+        "Lead Generation",
+        "Brand Strategy",
+        "Partnership Meetings",
+        "Industry Events",
+        "Content Creation",
+        "Data Analysis",
+        "Strategy Review",
+        "Customer Research",
+        "Performance Review",
+        "Innovation Workshop",
+        "Team Sync",
+        "Stakeholder Updates",
+        "Creative Review",
+        "Campaign Optimization",
+        "Trend Analysis",
     ];
-    
+
     let weekday = date.weekday();
     let is_monday = weekday.number_from_monday() == 1;
     let is_friday = weekday.number_from_monday() == 5;
-    
+
     if is_monday {
         "Weekly Planning".to_string()
     } else if is_friday {
@@ -99,7 +126,7 @@ fn generate_marketing_content(date: &DateTime<Utc>, rng: &mut ThreadRng) -> Stri
         generate_meeting_notes,
         generate_performance_metrics,
     ];
-    
+
     let generator = content_types.choose(rng).unwrap();
     generator(date, rng)
 }
