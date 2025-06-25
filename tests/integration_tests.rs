@@ -1,6 +1,26 @@
 use nodespace_core_types::{Node, NodeId};
 use nodespace_data_store::{DataStore, SurrealDataStore};
 
+/// Generate a deterministic test embedding vector for testing
+/// This simulates the 384-dimensional embeddings from bge-small-en-v1.5
+fn generate_test_embedding(content: &str, seed: u32) -> Vec<f32> {
+    let content_hash = content
+        .chars()
+        .map(|c| c as u32)
+        .sum::<u32>()
+        .wrapping_add(seed);
+    let base_seed = content_hash as f32 / 1000.0;
+
+    // Generate 384-dimensional embedding to match bge-small-en-v1.5
+    (0..384)
+        .map(|i| {
+            let angle = (base_seed + i as f32) * 0.1;
+            // Normalize to range [-1, 1] and make it deterministic
+            ((angle.sin() + angle.cos()) / 2.0).clamp(-1.0, 1.0)
+        })
+        .collect()
+}
+
 #[tokio::test]
 async fn test_store_and_retrieve_node() {
     let store = SurrealDataStore::new("memory").await.unwrap();
@@ -93,9 +113,9 @@ async fn test_vector_storage_and_search() {
         serde_json::json!("Python is a high-level programming language"),
     );
 
-    // Sample embeddings (in reality these would come from an NLP engine)
-    let embedding1 = vec![0.1, 0.2, 0.3, 0.4, 0.5];
-    let embedding2 = vec![0.2, 0.3, 0.4, 0.5, 0.6];
+    // Sample embeddings (384 dimensions to match bge-small-en-v1.5)
+    let embedding1 = generate_test_embedding("rust systems programming", 42);
+    let embedding2 = generate_test_embedding("python high level", 123);
 
     // Store nodes with embeddings
     store
@@ -134,8 +154,8 @@ async fn test_update_node_embedding() {
     // Store node without embedding first
     store.store_node(node).await.unwrap();
 
-    // Add embedding to the node
-    let embedding = vec![0.7, 0.8, 0.9, 1.0, 1.1];
+    // Add embedding to the node (384 dimensions for bge-small-en-v1.5)
+    let embedding = generate_test_embedding("test content embedding update", 456);
     store
         .update_node_embedding(&node_id, embedding.clone())
         .await
@@ -174,10 +194,10 @@ async fn test_semantic_search_with_embedding() {
         serde_json::json!("Neural networks and deep learning"),
     );
 
-    // Sample embeddings representing semantic similarity
-    let ai_embedding = vec![0.9, 0.8, 0.1, 0.2, 0.1]; // AI-related
-    let db_embedding = vec![0.1, 0.2, 0.9, 0.8, 0.1]; // Database-related
-    let ml_embedding = vec![0.8, 0.9, 0.1, 0.1, 0.2]; // ML-related (similar to AI)
+    // Sample embeddings representing semantic similarity (384 dimensions)
+    let ai_embedding = generate_test_embedding("ai machine learning fundamentals", 789);
+    let db_embedding = generate_test_embedding("database management systems", 321);
+    let ml_embedding = generate_test_embedding("neural networks deep learning", 654);
 
     // Store nodes with embeddings
     store
@@ -194,7 +214,7 @@ async fn test_semantic_search_with_embedding() {
         .unwrap();
 
     // Search using the new semantic_search_with_embedding method
-    let query_embedding = vec![0.85, 0.85, 0.1, 0.15, 0.15]; // Should be closest to AI/ML nodes
+    let query_embedding = generate_test_embedding("artificial intelligence machine learning", 999);
     let search_results = store
         .semantic_search_with_embedding(query_embedding, 2)
         .await
