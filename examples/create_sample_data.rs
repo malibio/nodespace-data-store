@@ -1,5 +1,5 @@
 use chrono::{DateTime, Datelike, Duration, Utc};
-use nodespace_data_store::SurrealDataStore;
+use nodespace_data_store::{DataStore, SurrealDataStore};
 use rand::prelude::*;
 
 #[tokio::main]
@@ -39,11 +39,50 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .create_or_get_date_node(&date_str, Some(&get_date_context(&current_date, &mut rng)))
             .await?;
 
-        // Generate diverse content for this date
+        // Generate diverse content for this date with hierarchical relationships
         for _ in 0..entries_count {
             let content = generate_marketing_content(&current_date, &mut rng);
-            store.create_text_node(&content, Some(&date_str)).await?;
-            total_entries += 1;
+            
+            // Check if content has bullet points that should become child nodes
+            if content.contains("•") || content.contains("\n• ") {
+                // Split into parent and children
+                let lines: Vec<&str> = content.split('\n').collect();
+                let mut parent_content = String::new();
+                let mut bullet_points = Vec::new();
+                
+                for line in lines {
+                    let trimmed = line.trim();
+                    if trimmed.starts_with("•") {
+                        bullet_points.push(trimmed.to_string());
+                    } else if !trimmed.is_empty() && parent_content.is_empty() {
+                        parent_content = trimmed.to_string();
+                    } else if !trimmed.is_empty() && !trimmed.starts_with("•") {
+                        // Non-bullet content goes to parent
+                        if !parent_content.is_empty() {
+                            parent_content.push('\n');
+                        }
+                        parent_content.push_str(trimmed);
+                    }
+                }
+                
+                // Create parent node
+                if !parent_content.is_empty() {
+                    let parent_id = store.create_text_node(&parent_content, Some(&date_str)).await?;
+                    total_entries += 1;
+                    
+                    // Create child nodes for each bullet point
+                    for bullet in bullet_points {
+                        let child_id = store.create_text_node(&bullet, Some(&date_str)).await?;
+                        // Create parent-child relationship
+                        store.create_relationship(&parent_id, &child_id, "contains").await?;
+                        total_entries += 1;
+                    }
+                }
+            } else {
+                // Regular content without bullet points
+                store.create_text_node(&content, Some(&date_str)).await?;
+                total_entries += 1;
+            }
         }
 
         current_date = current_date + Duration::days(1);
@@ -224,13 +263,14 @@ fn generate_research_content(_date: &DateTime<Utc>, rng: &mut ThreadRng) -> Stri
 
 fn generate_task_list_content(_date: &DateTime<Utc>, rng: &mut ThreadRng) -> String {
     let tasks = vec![
-        "• Finalize Q3 budget allocation ✓\n• Review creative assets\n• Update stakeholder presentation\n• Schedule client check-in calls\n• Competitive analysis deep-dive",
-        "• Email campaign segmentation\n• Landing page optimization\n• Social media content calendar ✓\n• Partnership agreement review\n• Team one-on-one meetings ✓",
-        "• Website analytics audit\n• Customer interview scheduling ✓\n• Brand guideline updates\n• Campaign performance report\n• Industry event planning",
-        "• Content production timeline\n• Lead scoring model review ✓\n• Sales collateral updates\n• Marketing automation setup\n• Vendor contract negotiations",
-        "• Product launch checklist\n• PR strategy development ✓\n• Influencer outreach program\n• Event logistics coordination\n• Budget reconciliation ✓",
-        "• Customer success metrics\n• Creative brief development\n• Channel partner enablement ✓\n• Conversion optimization\n• Team training schedule",
-        "• Market research synthesis ✓\n• Campaign attribution analysis\n• Content gap assessment\n• Technology stack evaluation\n• Performance dashboard update",
+        "Today's priorities:\n• Finalize Q3 budget allocation ✓\n• Review creative assets\n• Update stakeholder presentation\n• Schedule client check-in calls\n• Competitive analysis deep-dive",
+        "Marketing tasks:\n• Email campaign segmentation\n• Landing page optimization\n• Social media content calendar ✓\n• Partnership agreement review\n• Team one-on-one meetings ✓",
+        "Weekly action items:\n• Website analytics audit\n• Customer interview scheduling ✓\n• Brand guideline updates\n• Campaign performance report\n• Industry event planning",
+        "Project management checklist:\n• Content production timeline\n• Lead scoring model review ✓\n• Sales collateral updates\n• Marketing automation setup\n• Vendor contract negotiations",
+        "Launch preparation tasks:\n• Product launch checklist\n• PR strategy development ✓\n• Influencer outreach program\n• Event logistics coordination\n• Budget reconciliation ✓",
+        "Client deliverables:\n• Customer success metrics\n• Creative brief development\n• Channel partner enablement ✓\n• Conversion optimization\n• Team training schedule",
+        "Research and analysis:\n• Market research synthesis ✓\n• Campaign attribution analysis\n• Content gap assessment\n• Technology stack evaluation\n• Performance dashboard update",
+        "Campaign planning:\n• Define target segments\n• Create messaging framework\n• Design creative concepts ✓\n• Set up tracking parameters\n• Schedule launch sequence",
     ];
     tasks.choose(rng).unwrap().to_string()
 }
@@ -257,6 +297,8 @@ fn generate_performance_metrics(_date: &DateTime<Utc>, rng: &mut ThreadRng) -> S
         "Content performance analysis:\n• Blog traffic: 45,678 monthly visitors\n• Average session duration: 3:42\n• Content engagement rate: 8.7%\n• Download conversion rate: 12.3%\n• Video completion rate: 76%",
         "Lead quality assessment:\n• Marketing qualified leads: 856\n• Sales qualified leads: 234\n• MQL to SQL conversion: 27.3%\n• SQL to customer conversion: 18.9%\n• Average lead score: 73/100",
         "Digital marketing metrics:\n• Cost per click: $2.34 ↘\n• Click-through rate: 3.8% ↗\n• Landing page conversion: 11.2%\n• Email list growth: 234 new subscribers\n• Social media followers: +1,247",
+        "Weekly performance summary:\n• New qualified leads: 127 (target: 100)\n• Pipeline progression: $480K advanced\n• Content engagement: 8.9% avg rate\n• Social reach: 89,400 impressions\n• Demo conversion rate: 23%",
+        "Q3 goals tracking:\n• Revenue target: $2.1M (67% complete)\n• New customer acquisitions: 34 (target: 50)\n• Brand awareness lift: 18% (target: 25%)\n• Market expansion: 3 new verticals\n• Team productivity: 15% improvement",
     ];
     metrics.choose(rng).unwrap().to_string()
 }
