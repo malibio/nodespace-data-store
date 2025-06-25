@@ -58,5 +58,4 @@ cargo bench
 - [NodeSpace System Design](../nodespace-system-design/README.md) - Full architecture
 - [Linear workspace](https://linear.app/nodespace) - Task management
 - [Development Workflow](../nodespace-system-design/docs/development/workflow.md)
-- [Key Contracts](../nodespace-system-design/contracts/) - Interface definitions
 - [MVP User Flow](../nodespace-system-design/examples/mvp-user-flow.md)
