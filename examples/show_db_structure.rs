@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
             println!("   content: \"{}\"", truncated);
         }
-        println!("   vector: [not yet implemented]");
+        println!("   vector: [384-dim BAAI/bge-small-en-v1.5 embedding]");
         println!();
     }
 
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
                 println!("        content: \"{}\"", truncated);
             }
-            println!("        vector: [embeddings will go here]");
+            println!("        vector: [384-dim fastembed-rs embedding]");
         }
     } else {
         println!("No children found for {}", test_date);

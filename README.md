@@ -94,7 +94,35 @@ cargo run --example create_sample_data
 
 # Benchmark search performance
 cargo bench
+
+# Embedding migration (fastembed-rs)
+cargo run --example migrate_embeddings
+cargo run --example regenerate_embeddings
 ```
+
+## 🔄 Embedding Migration
+
+The repository supports migration from legacy Candle + all-MiniLM-L6-v2 to modern fastembed-rs + BAAI/bge-small-en-v1.5 embeddings.
+
+### Quick Migration
+```bash
+# 1. Backup and clear old embeddings
+cargo run --example migrate_embeddings
+
+# 2. Regenerate with new model (requires NS-54 completion)
+cargo run --example regenerate_embeddings
+
+# 3. Validate migration
+cargo run --example fastembed_integration
+```
+
+### Benefits
+- **Performance**: ONNX Runtime + Rayon parallelization
+- **Quality**: BAAI/bge-small-en-v1.5 ranks higher on MTEB leaderboard  
+- **Architecture**: Unified stack with text generation
+- **Cross-platform**: Better Windows/macOS support
+
+See [MIGRATION.md](./MIGRATION.md) for complete migration guide.
 
 ---
 
