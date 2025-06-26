@@ -14,6 +14,12 @@ pub enum DataStoreError {
 
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
+
+    #[error("Invalid vector: expected {expected} dimensions, got {actual}")]
+    InvalidVector { expected: usize, actual: usize },
+
+    #[error("LanceDB error: {0}")]
+    LanceDB(String),
 }
 
 impl From<DataStoreError> for NodeSpaceError {
@@ -23,6 +29,10 @@ impl From<DataStoreError> for NodeSpaceError {
             DataStoreError::Serialization(_) => NodeSpaceError::SerializationError(err.to_string()),
             DataStoreError::NodeNotFound(_) => NodeSpaceError::NotFound(err.to_string()),
             DataStoreError::InvalidQuery(_) => NodeSpaceError::ValidationError(err.to_string()),
+            DataStoreError::InvalidVector { .. } => {
+                NodeSpaceError::ValidationError(err.to_string())
+            }
+            DataStoreError::LanceDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
         }
     }
 }
