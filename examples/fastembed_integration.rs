@@ -114,7 +114,7 @@ fn generate_placeholder_fastembed_embedding(content: &str) -> Vec<f32> {
             // Simulate more realistic embedding distribution
             let value = (angle.sin() + angle.cos()) / 2.0;
             // Add some variation to make embeddings more realistic
-            let variation = ((i as f32 * seed).sin() * 0.1);
+            let variation = (i as f32 * seed).sin() * 0.1;
             (value + variation).clamp(-1.0, 1.0)
         })
         .collect()
