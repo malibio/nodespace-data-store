@@ -20,6 +20,9 @@ pub enum DataStoreError {
 
     #[error("LanceDB error: {0}")]
     LanceDB(String),
+
+    #[error("I/O error: {0}")]
+    IoError(String),
 }
 
 impl From<DataStoreError> for NodeSpaceError {
@@ -33,6 +36,7 @@ impl From<DataStoreError> for NodeSpaceError {
                 NodeSpaceError::ValidationError(err.to_string())
             }
             DataStoreError::LanceDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
+            DataStoreError::IoError(_) => NodeSpaceError::IoError(err.to_string()),
         }
     }
 }

@@ -1,0 +1,12 @@
+{
+  "table_name": "task",
+  "schema_version": "1.0",
+  "export_timestamp": "2025-06-26T19:39:16.956123+00:00",
+  "record_count": 0,
+  "records": [],
+  "metadata": {
+    "content_hash": "7e49f95989aaf208",
+    "embedding_stats": null,
+    "relationship_count": 0
+  }
+}
