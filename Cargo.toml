@@ -6,7 +6,16 @@ description = "Database, persistence, and vector storage for NodeSpace"
 
 [dependencies]
 nodespace-core-types = { path = "../nodespace-core-types" }
+
+# LanceDB Core (primary database)
+lancedb = "0.17"
+arrow-array = "53"
+arrow-schema = "53"
+
+# SurrealDB (legacy - for migration compatibility)
 surrealdb = { version = "1.5", features = ["kv-mem", "kv-rocksdb"] }
+
+# Core infrastructure
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
