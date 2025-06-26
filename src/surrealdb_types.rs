@@ -42,6 +42,13 @@ pub struct NodeRecord {
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub embedding: Option<Vec<f32>>,
+    // Sibling pointer fields for linked list structure
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_sibling: Option<String>,
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub previous_sibling: Option<String>,
 }
 
 /// Represents a relationship record in SurrealDB
@@ -75,7 +82,9 @@ impl From<NodeRecord> for nodespace_core_types::Node {
         let mut node = nodespace_core_types::Node::with_id(
             // Extract ID from Thing or generate new one
             if let Some(thing) = record.id {
-                nodespace_core_types::NodeId::from_string(thing.id.to_string())
+                // Convert underscores back to hyphens for proper UUID format
+                let id_str = thing.id.to_string().replace("_", "-");
+                nodespace_core_types::NodeId::from_string(id_str)
             } else {
                 nodespace_core_types::NodeId::new()
             },
@@ -84,6 +93,17 @@ impl From<NodeRecord> for nodespace_core_types::Node {
 
         if let Some(metadata) = record.metadata {
             node = node.with_metadata(metadata);
+        }
+
+        // Set sibling pointers if they exist
+        if let Some(next_id) = record.next_sibling {
+            let next_node_id = nodespace_core_types::NodeId::from_string(next_id.replace("_", "-"));
+            node = node.with_next_sibling(Some(next_node_id));
+        }
+
+        if let Some(prev_id) = record.previous_sibling {
+            let prev_node_id = nodespace_core_types::NodeId::from_string(prev_id.replace("_", "-"));
+            node = node.with_previous_sibling(Some(prev_node_id));
         }
 
         node.created_at = record.created_at;
@@ -102,6 +122,11 @@ impl From<nodespace_core_types::Node> for NodeRecord {
             created_at: node.created_at,
             updated_at: node.updated_at,
             embedding: None, // Will be set separately if needed
+            // Convert sibling NodeIds to strings (with underscores for SurrealDB compatibility)
+            next_sibling: node.next_sibling.map(|id| id.to_string().replace("-", "_")),
+            previous_sibling: node
+                .previous_sibling
+                .map(|id| id.to_string().replace("-", "_")),
         }
     }
 }
@@ -113,7 +138,9 @@ impl From<TextRecord> for nodespace_core_types::Node {
 
         let mut node = nodespace_core_types::Node::with_id(
             if let Some(thing) = record.id {
-                nodespace_core_types::NodeId::from_string(thing.id.to_string())
+                // Convert underscores back to hyphens for proper UUID format
+                let id_str = thing.id.to_string().replace("_", "-");
+                nodespace_core_types::NodeId::from_string(id_str)
             } else {
                 nodespace_core_types::NodeId::new()
             },

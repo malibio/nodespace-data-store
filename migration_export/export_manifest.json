@@ -1,0 +1,94 @@
+{
+  "export_timestamp": "2025-06-26T19:39:16.949280+00:00",
+  "total_records": 1,
+  "export_files": [
+    {
+      "file_name": "text_nodes.json",
+      "table_name": "text",
+      "record_count": 0,
+      "file_size_bytes": 0,
+      "checksum": "7e39ae02aef5cd81",
+      "export_timestamp": "2025-06-26T19:39:16.955303+00:00"
+    },
+    {
+      "file_name": "date_nodes.json",
+      "table_name": "date",
+      "record_count": 0,
+      "file_size_bytes": 0,
+      "checksum": "157b1ca6ecb0a7c1",
+      "export_timestamp": "2025-06-26T19:39:16.955923+00:00"
+    },
+    {
+      "file_name": "task_nodes.json",
+      "table_name": "task",
+      "record_count": 0,
+      "file_size_bytes": 0,
+      "checksum": "7e49f95989aaf208",
+      "export_timestamp": "2025-06-26T19:39:16.956123+00:00"
+    },
+    {
+      "file_name": "generic_nodes.json",
+      "table_name": "nodes",
+      "record_count": 0,
+      "file_size_bytes": 0,
+      "checksum": "fc69f17688c5bd8b",
+      "export_timestamp": "2025-06-26T19:39:16.956596+00:00"
+    },
+    {
+      "file_name": "contains_relationships.json",
+      "table_name": "contains",
+      "record_count": 0,
+      "file_size_bytes": 0,
+      "checksum": "82a58f4e0472e19b",
+      "export_timestamp": "2025-06-26T19:39:16.956999+00:00"
+    },
+    {
+      "file_name": "sibling_relationships.json",
+      "table_name": "sibling",
+      "record_count": 0,
+      "file_size_bytes": 0,
+      "checksum": "3210fa6607f3ebe2",
+      "export_timestamp": "2025-06-26T19:39:16.957188+00:00"
+    },
+    {
+      "file_name": "database_metadata.json",
+      "table_name": "_metadata",
+      "record_count": 1,
+      "file_size_bytes": 0,
+      "checksum": "cae604ad8350eb7e",
+      "export_timestamp": "2025-06-26T19:39:16.957271+00:00"
+    }
+  ],
+  "schema_version": "1.0",
+  "validation_checksum": "50640308aa927ad6",
+  "database_info": {
+    "database_path": "data/sample.db",
+    "total_tables": 4,
+    "table_statistics": {
+      "text": {
+        "record_count": 0,
+        "has_embeddings": false,
+        "embedding_dimension": null,
+        "avg_content_length": null
+      },
+      "date": {
+        "record_count": 0,
+        "has_embeddings": false,
+        "embedding_dimension": null,
+        "avg_content_length": null
+      },
+      "task": {
+        "record_count": 0,
+        "has_embeddings": false,
+        "embedding_dimension": null,
+        "avg_content_length": null
+      },
+      "nodes": {
+        "record_count": 0,
+        "has_embeddings": false,
+        "embedding_dimension": null,
+        "avg_content_length": null
+      }
+    }
+  }
+}
