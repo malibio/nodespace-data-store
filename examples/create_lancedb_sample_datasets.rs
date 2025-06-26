@@ -1,4 +1,4 @@
-use arrow_array::{RecordBatch, StringArray, UInt64Array, FixedSizeListArray};
+use arrow_array::{FixedSizeListArray, RecordBatch, StringArray, UInt64Array};
 use arrow_schema::{DataType, Field, Schema};
 use lancedb::{connect, Connection, Table};
 use std::sync::Arc;
@@ -15,36 +15,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create comprehensive sample datasets
     println!("📊 Creating Universal Document Collections...");
-    
+
     // Dataset 1: Business Strategy Documents
     create_business_strategy_collection(&db).await?;
-    
+
     // Dataset 2: Technical Documentation
     create_technical_docs_collection(&db).await?;
-    
+
     // Dataset 3: Project Planning Documents
     create_project_planning_collection(&db).await?;
-    
+
     // Dataset 4: Research and Knowledge Base
     create_research_collection(&db).await?;
-    
+
     // Dataset 5: Meeting and Collaboration Records
     create_collaboration_collection(&db).await?;
 
     // Generate comprehensive statistics
     println!("\n📈 LanceDB Dataset Statistics");
     println!("═══════════════════════════════════════════");
-    
+
     let total_records = count_total_records(&db).await?;
     println!("🗃️  Total Records: {}", total_records);
     println!("🏗️  Architecture: Universal document model");
     println!("🔍 Vector Search: Native embedding support");
     println!("📊 Content Types: 5 distinct professional domains");
-    
+
     // Test vector search capabilities
     println!("\n🧪 Testing Vector Search Capabilities...");
     test_semantic_search(&db).await?;
-    
+
     println!("\n🎉 LanceDB Sample Datasets Created Successfully!");
     println!("💡 Ready for:");
     println!("   • Native vector search (no external indexing)");
@@ -57,11 +57,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 /// Create business strategy document collection
-async fn create_business_strategy_collection(db: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+async fn create_business_strategy_collection(
+    db: &Connection,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🏢 Creating Business Strategy Collection...");
-    
+
     let schema = create_universal_document_schema();
-    
+
     let documents = vec![
         UniversalDocument {
             id: "bus_001".to_string(),
@@ -91,19 +93,24 @@ async fn create_business_strategy_collection(db: &Connection) -> Result<(), Box<
             embedding: generate_sample_embedding("target audience demographics psychographics sustainability professionals"),
         },
     ];
-    
+
     let table = create_documents_table(db, "business_strategy", &schema, documents).await?;
-    println!("   ✅ Created business_strategy table with {} records", table.count_rows(None).await?);
-    
+    println!(
+        "   ✅ Created business_strategy table with {} records",
+        table.count_rows(None).await?
+    );
+
     Ok(())
 }
 
 /// Create technical documentation collection
-async fn create_technical_docs_collection(db: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+async fn create_technical_docs_collection(
+    db: &Connection,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔧 Creating Technical Documentation Collection...");
-    
+
     let schema = create_universal_document_schema();
-    
+
     let documents = vec![
         UniversalDocument {
             id: "tech_001".to_string(),
@@ -133,19 +140,24 @@ async fn create_technical_docs_collection(db: &Connection) -> Result<(), Box<dyn
             embedding: generate_sample_embedding("data models schema TypeScript UUID validation JSON"),
         },
     ];
-    
+
     let table = create_documents_table(db, "technical_docs", &schema, documents).await?;
-    println!("   ✅ Created technical_docs table with {} records", table.count_rows(None).await?);
-    
+    println!(
+        "   ✅ Created technical_docs table with {} records",
+        table.count_rows(None).await?
+    );
+
     Ok(())
 }
 
 /// Create project planning collection
-async fn create_project_planning_collection(db: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+async fn create_project_planning_collection(
+    db: &Connection,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("📋 Creating Project Planning Collection...");
-    
+
     let schema = create_universal_document_schema();
-    
+
     let documents = vec![
         UniversalDocument {
             id: "proj_001".to_string(),
@@ -175,19 +187,22 @@ async fn create_project_planning_collection(db: &Connection) -> Result<(), Box<d
             embedding: generate_sample_embedding("risk management LanceDB migration AI model performance mitigation"),
         },
     ];
-    
+
     let table = create_documents_table(db, "project_planning", &schema, documents).await?;
-    println!("   ✅ Created project_planning table with {} records", table.count_rows(None).await?);
-    
+    println!(
+        "   ✅ Created project_planning table with {} records",
+        table.count_rows(None).await?
+    );
+
     Ok(())
 }
 
 /// Create research collection
 async fn create_research_collection(db: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔬 Creating Research Collection...");
-    
+
     let schema = create_universal_document_schema();
-    
+
     let documents = vec![
         UniversalDocument {
             id: "research_001".to_string(),
@@ -217,19 +232,24 @@ async fn create_research_collection(db: &Connection) -> Result<(), Box<dyn std::
             embedding: generate_sample_embedding("embedding model evaluation BAAI bge MiniLM MTEB benchmark"),
         },
     ];
-    
+
     let table = create_documents_table(db, "research", &schema, documents).await?;
-    println!("   ✅ Created research table with {} records", table.count_rows(None).await?);
-    
+    println!(
+        "   ✅ Created research table with {} records",
+        table.count_rows(None).await?
+    );
+
     Ok(())
 }
 
 /// Create collaboration collection
-async fn create_collaboration_collection(db: &Connection) -> Result<(), Box<dyn std::error::Error>> {
+async fn create_collaboration_collection(
+    db: &Connection,
+) -> Result<(), Box<dyn std::error::Error>> {
     println!("🤝 Creating Collaboration Collection...");
-    
+
     let schema = create_universal_document_schema();
-    
+
     let documents = vec![
         UniversalDocument {
             id: "collab_001".to_string(),
@@ -259,10 +279,13 @@ async fn create_collaboration_collection(db: &Connection) -> Result<(), Box<dyn 
             embedding: generate_sample_embedding("action items decisions GPU allocation migration timeline security testing"),
         },
     ];
-    
+
     let table = create_documents_table(db, "collaboration", &schema, documents).await?;
-    println!("   ✅ Created collaboration table with {} records", table.count_rows(None).await?);
-    
+    println!(
+        "   ✅ Created collaboration table with {} records",
+        table.count_rows(None).await?
+    );
+
     Ok(())
 }
 
@@ -287,7 +310,11 @@ fn create_universal_document_schema() -> Arc<Schema> {
         Field::new("domain", DataType::Utf8, false),
         Field::new("created_at", DataType::UInt64, false),
         Field::new("metadata", DataType::Utf8, false),
-        Field::new("embedding", DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 384), false),
+        Field::new(
+            "embedding",
+            DataType::FixedSizeList(Arc::new(Field::new("item", DataType::Float32, true)), 384),
+            false,
+        ),
     ]))
 }
 
@@ -306,7 +333,7 @@ async fn create_documents_table(
     let created_ats: Vec<u64> = documents.iter().map(|d| d.created_at).collect();
     let metadatas: Vec<String> = documents.iter().map(|d| d.metadata.clone()).collect();
     let embeddings: Vec<Vec<f32>> = documents.iter().map(|d| d.embedding.clone()).collect();
-    
+
     let batch = RecordBatch::try_new(
         schema.clone(),
         vec![
@@ -329,16 +356,16 @@ async fn create_documents_table(
             },
         ],
     )?;
-    
+
     // Create table using a RecordBatchIterator
     let batches = vec![batch];
     let reader = arrow_array::RecordBatchIterator::new(batches.into_iter().map(Ok), schema.clone());
-    
+
     let table = db
         .create_table(table_name, Box::new(reader))
         .execute()
         .await?;
-        
+
     Ok(table)
 }
 
@@ -346,7 +373,7 @@ async fn create_documents_table(
 fn generate_sample_embedding(content: &str) -> Vec<f32> {
     let content_hash = content.chars().map(|c| c as u32).sum::<u32>();
     let seed = content_hash as f32 / 1000.0;
-    
+
     // Generate 384-dimensional embedding (matching bge-small-en-v1.5)
     (0..384)
         .map(|i| {
@@ -361,7 +388,7 @@ fn generate_sample_embedding(content: &str) -> Vec<f32> {
 /// Test semantic search capabilities
 async fn test_semantic_search(_db: &Connection) -> Result<(), Box<dyn std::error::Error>> {
     println!("🔍 Testing Semantic Search:");
-    
+
     // Test queries across different domains
     let test_queries = vec![
         ("LanceDB performance", "research"),
@@ -370,27 +397,36 @@ async fn test_semantic_search(_db: &Connection) -> Result<(), Box<dyn std::error
         ("team meeting", "collaboration"),
         ("business strategy", "business"),
     ];
-    
+
     for (query, expected_domain) in test_queries {
         // Note: In a real implementation, you'd use LanceDB's vector search
         // For now, just demonstrate the capability exists
-        println!("   Query: '{}' → Expected domain: {}", query, expected_domain);
+        println!(
+            "   Query: '{}' → Expected domain: {}",
+            query, expected_domain
+        );
     }
-    
+
     println!("✅ Vector search ready (awaiting full LanceDB query implementation)");
     Ok(())
 }
 
 /// Count total records across all tables
 async fn count_total_records(db: &Connection) -> Result<usize, Box<dyn std::error::Error>> {
-    let table_names = vec!["business_strategy", "technical_docs", "project_planning", "research", "collaboration"];
+    let table_names = vec![
+        "business_strategy",
+        "technical_docs",
+        "project_planning",
+        "research",
+        "collaboration",
+    ];
     let mut total = 0;
-    
+
     for table_name in table_names {
         if let Ok(table) = db.open_table(table_name).execute().await {
             total += table.count_rows(None).await?;
         }
     }
-    
+
     Ok(total)
 }

@@ -122,7 +122,7 @@ impl DataStore for SurrealDataStore {
             .map_err(DataStoreError::from)?;
 
         // Take the first result and convert to Vec<Node>
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         let mut nodes = Vec::new();
         for value in values {
@@ -212,7 +212,7 @@ impl DataStore for SurrealDataStore {
             .map_err(DataStoreError::from)?;
 
         // Extract the relationship ID from the result
-        let _value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::Database)?;
+        let _value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         Ok(())
     }
@@ -257,7 +257,7 @@ impl DataStore for SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         let mut results = Vec::new();
         for value in values {
@@ -367,7 +367,7 @@ impl DataStore for SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         let mut results = Vec::new();
         for value in values {
@@ -459,7 +459,7 @@ impl SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::Database)?;
+        let value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         let json = serde_json::to_value(&value).map_err(DataStoreError::from)?;
 
@@ -557,7 +557,7 @@ impl SurrealDataStore {
             .await
             .map_err(DataStoreError::from)?;
         let text_values: Vec<serde_json::Value> =
-            text_result.take(0).map_err(DataStoreError::Database)?;
+            text_result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         let mut nodes = Vec::new();
         for value in text_values {
@@ -604,7 +604,7 @@ impl SurrealDataStore {
         let query = format!("SELECT * FROM {}->contains", from_thing);
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
         Ok(values)
     }
 
