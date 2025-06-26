@@ -19,9 +19,10 @@ This is part of the larger NodeSpace system architecture:
 
 ## Key Interfaces & Dependencies
 
-- **Core dependency**: `nodespace-core-types` for `DataStore` trait and `Node` structures
+- **Trait ownership**: This repository owns and exports the `DataStore` trait for other services to import
+- **Core dependency**: `nodespace-core-types` for shared `Node` structures and `NodeSpaceResult` types
 - **Database**: SurrealDB multi-model database (Document + Graph + Vector)
-- **Primary trait**: Must implement `DataStore` trait from `nodespace-core-types`
+- **Primary trait**: Implements and exports `DataStore` trait from this repository
 - **Query language**: SurrealQL (LLM-friendly)
 
 ## Development Commands

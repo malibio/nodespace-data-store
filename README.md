@@ -54,8 +54,8 @@ This repository **owns the `DataStore` trait** as part of NodeSpace's distribute
 nodespace-data-store = { git = "https://github.com/malibio/nodespace-data-store" }
 
 # Use in your code
-use nodespace_data_store::SurrealDataStore;
-use nodespace_core_types::{DataStore, Node};
+use nodespace_data_store::{DataStore, SurrealDataStore};
+use nodespace_core_types::Node;
 
 let store = SurrealDataStore::new("./data/nodes.db").await?;
 let node = store.store_node(node).await?;
