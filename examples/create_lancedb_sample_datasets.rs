@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("");
 
     // Initialize LanceDB connection
-    let db = connect("./data/nodescape_lance.db").execute().await?;
+    let db = connect("/Users/malibio/nodespace/data/lance_db").execute().await?;
     println!("✅ Connected to LanceDB");
 
     // Create comprehensive sample datasets

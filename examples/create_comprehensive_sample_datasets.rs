@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/comprehensive_sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Create multiple date-based datasets
     println!("📅 Creating Multi-Date Sample Dataset Structure...");

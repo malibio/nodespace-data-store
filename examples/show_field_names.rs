@@ -5,7 +5,7 @@ use serde_json::Value;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Database Field Names ===\n");
 
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Query raw SurrealDB to see exact field structure
     println!("RAW TEXT RECORD FIELDS:");
@@ -33,12 +33,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     println!("\n=== Database File Location ===");
-    println!("This example uses: ./data/sample.db");
-    println!("Full path: /Users/malibio/nodespace/nodespace-data-store/data/sample.db");
+    println!("This example uses: /Users/malibio/nodespace/data/sample.db");
+    println!("Full path: /Users/malibio/nodespace/data/sample.db");
 
     // Check if the desktop app might be using a different path
     println!("\nPossible desktop app database locations:");
-    println!("- Same path: ./data/sample.db");
+    println!("- Shared path: /Users/malibio/nodespace/data/sample.db");
     println!("- Different relative path from desktop app directory");
     println!("- Absolute path specified in desktop app config");
 

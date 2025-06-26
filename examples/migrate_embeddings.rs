@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📦 This will backup content without embeddings and clear embedding data");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Phase 1: Backup current data without embeddings
     println!("\n📋 Phase 1: Backing up current data without embeddings...");

@@ -8,7 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📌 This script will re-embed all content using the new model");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Phase 1: Get all content that needs re-embedding
     println!("\n📋 Phase 1: Discovering content to re-embed...");

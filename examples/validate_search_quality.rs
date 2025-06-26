@@ -8,7 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Phase 1: Search Quality Test Suite
     println!("📋 Phase 1: Search Quality Test Suite");

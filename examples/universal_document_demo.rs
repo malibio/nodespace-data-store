@@ -9,7 +9,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("");
 
     // Initialize LanceDB with universal schema
-    let mut store = LanceDataStore::new("./data/universal_demo.db").await?;
+    let mut store = LanceDataStore::new("/Users/malibio/nodespace/data/lance_db").await?;
     store.initialize_table().await?;
     println!("✅ Initialized LanceDB with Universal Document Schema");
 

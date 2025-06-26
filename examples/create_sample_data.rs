@@ -8,7 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Generating approximately 300 entries across 100 days...");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Generate sample data across ~100 days (March 15 - June 23, 2025) with ~3 entries per day
     let start_date = DateTime::parse_from_rfc3339("2025-03-15T00:00:00Z")
