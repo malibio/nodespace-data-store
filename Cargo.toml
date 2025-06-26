@@ -6,7 +6,23 @@ description = "Database, persistence, and vector storage for NodeSpace"
 
 [dependencies]
 nodespace-core-types = { path = "../nodespace-core-types" }
-surrealdb = { version = "1.5", features = ["kv-mem", "kv-rocksdb"] }
+
+# LanceDB Core
+lancedb = "0.17"
+arrow-array = "53"
+arrow-schema = "53"
+arrow-data = "53"
+
+# AI Stack Integration (optional - will be used when implementing full LanceDB features)
+# fastembed = "3.0"
+# ort = "1.16" 
+# tokenizers = "0.15"
+
+# Data Processing (optional - will be used when implementing full LanceDB features)  
+# datafusion = "32"
+# polars = { version = "0.35", features = ["lazy"] }
+
+# Core infrastructure (KEEP)
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
@@ -15,6 +31,9 @@ thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
+
+# SurrealDB (KEEP during migration phase)
+surrealdb = { version = "2.3.6", features = ["kv-mem", "kv-rocksdb"] }
 
 [dev-dependencies]
 tokio-test = "0.4"
