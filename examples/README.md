@@ -6,7 +6,11 @@ This directory contains comprehensive sample datasets for testing, validation, a
 
 ### `create_comprehensive_sample_datasets.rs`
 
-**Purpose:** Complete sample dataset generation for LanceDB migration validation, RAG functionality testing, and performance benchmarking.
+**Purpose:** Complete sample dataset generation for LanceDB migration validation, RAG functionality testing, and performance benchmarking using SurrealDB.
+
+### `create_lancedb_sample_datasets.rs` ⭐ **Recommended**
+
+**Purpose:** Modern LanceDB-based sample dataset generator with native vector search capabilities and Arrow/Parquet storage format.
 
 **Content Coverage:**
 - **Business Strategy** (2025-06-15): Marketing campaigns, budgets, KPIs, audience analysis
@@ -15,18 +19,26 @@ This directory contains comprehensive sample datasets for testing, validation, a
 - **Research & Knowledge** (2025-06-18): AI research, vector database analysis, performance benchmarks
 - **Meeting & Collaboration** (2025-06-19): Team standups, updates, action items
 
-**Statistics:**
+**SurrealDB Statistics:**
 - 47 total nodes (42 text nodes + 5 date nodes)
 - 5 distinct content domains
 - Hierarchical depth up to 4 levels
 - Rich markdown formatting (headings, tables, code blocks, lists)
 - Realistic business content suitable for semantic search
 
+**LanceDB Statistics:**
+- 15 total records across 5 tables
+- Universal document model with 384-dimensional embeddings
+- Native vector search (no external indexing required)
+- Arrow/Parquet storage format for optimal performance
+- Ready for semantic similarity queries and RAG testing
+
 ### Usage
 
 ```bash
 # Generate comprehensive sample datasets
-cargo run --example create_comprehensive_sample_datasets
+cargo run --example create_comprehensive_sample_datasets  # SurrealDB-based
+cargo run --example create_lancedb_sample_datasets        # LanceDB-based (recommended)
 
 # Other available examples
 cargo run --example create_sample_data              # Basic sample data
