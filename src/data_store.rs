@@ -65,14 +65,14 @@ impl SurrealDataStore {
 #[async_trait]
 impl DataStore for SurrealDataStore {
     async fn store_node(&self, node: Node) -> NodeSpaceResult<NodeId> {
-        let _record_id = node_id_to_record_id(&node.id);
+        let record_id = node_id_to_record_id(&node.id);
 
         // Convert Node to NodeRecord for proper SurrealDB 2.x typing
         let node_record = NodeRecord::from(node.clone());
 
         let _created_record: Option<NodeRecord> = self
             .db
-            .create("nodes")
+            .create(record_id)
             .content(node_record)
             .await
             .map_err(DataStoreError::from)?;
@@ -132,46 +132,11 @@ impl DataStore for SurrealDataStore {
         // Create the relationship using correct SurrealDB RELATE syntax
         let relate_query = format!("RELATE {}->{}->{}", from_thing, rel_type, to_thing);
 
-        let mut result = self
-            .db
+        // Execute the query - don't try to deserialize the complex relationship result
+        self.db
             .query(relate_query)
             .await
             .map_err(DataStoreError::from)?;
-
-        // Extract and verify the relationship was created successfully
-        let relationship_result: Vec<surrealdb::sql::Value> =
-            result.take(0).map_err(DataStoreError::Database)?;
-
-        // Verify that the relationship was actually created
-        if relationship_result.is_empty() {
-            return Err(DataStoreError::Database(surrealdb::Error::Api(
-                surrealdb::error::Api::Query(
-                    "Failed to create relationship - no result returned".to_string(),
-                ),
-            ))
-            .into());
-        }
-
-        // Verify the relationship can be traversed by testing a simple query
-        let verify_query = format!("SELECT * FROM {}->{} LIMIT 1", from_thing, rel_type);
-        let mut verify_result = self
-            .db
-            .query(verify_query)
-            .await
-            .map_err(DataStoreError::from)?;
-
-        let verification: Vec<surrealdb::sql::Value> =
-            verify_result.take(0).map_err(DataStoreError::Database)?;
-
-        if verification.is_empty() {
-            return Err(DataStoreError::Database(surrealdb::Error::Api(
-                surrealdb::error::Api::Query(
-                    "Failed to verify relationship creation - relationship not traversable"
-                        .to_string(),
-                ),
-            ))
-            .into());
-        }
 
         Ok(())
     }
@@ -181,13 +146,15 @@ impl DataStore for SurrealDataStore {
         node: Node,
         embedding: Vec<f32>,
     ) -> NodeSpaceResult<NodeId> {
+        let record_id = node_id_to_record_id(&node.id);
+
         // Convert Node to NodeRecord and add embedding
         let mut node_record = NodeRecord::from(node.clone());
         node_record.embedding = Some(embedding);
 
         let _created_record: Option<NodeRecord> = self
             .db
-            .create("nodes")
+            .create(record_id)
             .content(node_record)
             .await
             .map_err(DataStoreError::from)?;
@@ -233,7 +200,9 @@ impl DataStore for SurrealDataStore {
             .map(|sr| {
                 // Convert SearchResult to Node
                 let node_id = if let Some(thing) = sr.id {
-                    nodespace_core_types::NodeId::from_string(thing.id.to_string())
+                    // Convert underscores back to hyphens for proper UUID format
+                    let id_str = thing.id.to_string().replace("_", "-");
+                    nodespace_core_types::NodeId::from_string(id_str)
                 } else {
                     nodespace_core_types::NodeId::new()
                 };
@@ -310,7 +279,9 @@ impl DataStore for SurrealDataStore {
             .map(|sr| {
                 // Convert SearchResult to Node
                 let node_id = if let Some(thing) = sr.id {
-                    nodespace_core_types::NodeId::from_string(thing.id.to_string())
+                    // Convert underscores back to hyphens for proper UUID format
+                    let id_str = thing.id.to_string().replace("_", "-");
+                    nodespace_core_types::NodeId::from_string(id_str)
                 } else {
                     nodespace_core_types::NodeId::new()
                 };
