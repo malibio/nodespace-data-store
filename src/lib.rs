@@ -10,5 +10,5 @@ mod schema;
 
 pub use data_store::{DataStore, SurrealDataStore};
 pub use error::DataStoreError;
-pub use lance_data_store::LanceDataStore;
+pub use lance_data_store::{LanceConfig, LanceDataStore, UniversalNode};
 pub use surrealdb_types::*;
