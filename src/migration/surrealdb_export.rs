@@ -5,7 +5,7 @@
 //! universal document format.
 
 use crate::error::DataStoreError;
-use crate::surrealdb_types::{DateRecord, NodeRecord, RelationshipRecord, TextRecord};
+use crate::surrealdb_types::{DateRecord, NodeRecord, RelationshipRecord};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
