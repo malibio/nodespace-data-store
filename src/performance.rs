@@ -149,7 +149,7 @@ impl PerformanceMonitor {
     /// Create new performance monitor with configuration
     pub fn new(config: PerformanceConfig) -> Self {
         Self {
-            config,
+            _config: config,
             metrics: Arc::new(Mutex::new(Vec::new())),
             aggregated: Arc::new(Mutex::new(HashMap::new())),
             alerts: Arc::new(Mutex::new(Vec::new())),
@@ -368,7 +368,7 @@ pub struct OperationTimer {
     operation_type: OperationType,
     start_time: Instant,
     metrics: Arc<Mutex<Vec<OperationMetric>>>,
-    config: PerformanceConfig,
+    _config: PerformanceConfig,
     metadata: HashMap<String, String>,
 }
 
@@ -382,7 +382,7 @@ impl OperationTimer {
             operation_type,
             start_time: Instant::now(),
             metrics,
-            config: config.clone(),
+            _config: config.clone(),
             metadata: HashMap::new(),
         }
     }
