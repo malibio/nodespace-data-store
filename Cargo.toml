@@ -8,7 +8,7 @@ description = "Database, persistence, and vector storage for NodeSpace"
 nodespace-core-types = { path = "../nodespace-core-types" }
 
 # LanceDB Core (primary database)
-lancedb = "0.17"
+lancedb = { version = "0.17", default-features = false }
 arrow-array = "53"
 arrow-schema = "53"
 arrow-data = "53"
