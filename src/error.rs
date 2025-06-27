@@ -4,7 +4,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum DataStoreError {
     #[error("SurrealDB error: {0}")]
-    SurrealDB(#[from] surrealdb::Error),
+    SurrealDB(String),
 
     #[error("LanceDB error: {0}")]
     LanceDB(String),
@@ -26,6 +26,18 @@ pub enum DataStoreError {
 
     #[error("I/O error: {0}")]
     IoError(String),
+
+    #[error("Invalid node: {0}")]
+    InvalidNode(String),
+
+    #[error("Image processing error: {0}")]
+    ImageError(String),
+
+    #[error("Cross-modal search error: {0}")]
+    CrossModalError(String),
+
+    #[error("Embedding error: {0}")]
+    EmbeddingError(String),
 }
 
 impl From<DataStoreError> for NodeSpaceError {
@@ -41,6 +53,10 @@ impl From<DataStoreError> for NodeSpaceError {
                 NodeSpaceError::ValidationError(err.to_string())
             }
             DataStoreError::IoError(_) => NodeSpaceError::IoError(err.to_string()),
+            DataStoreError::InvalidNode(_) => NodeSpaceError::ValidationError(err.to_string()),
+            DataStoreError::ImageError(_) => NodeSpaceError::ProcessingError(err.to_string()),
+            DataStoreError::CrossModalError(_) => NodeSpaceError::ProcessingError(err.to_string()),
+            DataStoreError::EmbeddingError(_) => NodeSpaceError::ProcessingError(err.to_string()),
         }
     }
 }

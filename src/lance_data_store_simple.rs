@@ -1,6 +1,7 @@
-use crate::data_store::DataStore;
+use crate::{DataStore, ImageNode, NodeType, HybridSearchConfig, SearchResult, RelevanceFactors};
 use crate::error::DataStoreError;
 use async_trait::async_trait;
+use base64::prelude::*;
 use lancedb::{connect, Connection};
 use nodespace_core_types::{Node, NodeId, NodeSpaceResult};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use std::sync::{Arc, Mutex};
 /// Simplified LanceDB DataStore implementation
 /// This provides a working foundation that can be enhanced later
 pub struct LanceDataStore {
+    #[allow(dead_code)] // TODO: Use connection for actual LanceDB operations
     connection: Connection,
     // For now, use in-memory storage as a bridge until LanceDB integration is complete
     nodes: Arc<Mutex<HashMap<String, UniversalNode>>>,
@@ -270,6 +272,173 @@ impl DataStore for LanceDataStore {
     ) -> NodeSpaceResult<Vec<(Node, f32)>> {
         // Same as search_similar_nodes for this implementation
         self.search_similar_nodes(embedding, limit).await
+    }
+
+    // NEW: Cross-modal search methods for NS-81
+    async fn create_image_node(&self, image_node: ImageNode) -> NodeSpaceResult<String> {
+        // Convert ImageNode to UniversalNode format
+        let universal_node = UniversalNode {
+            id: image_node.id.clone(),
+            node_type: "image".to_string(),
+            content: image_node.metadata.description.unwrap_or_else(|| {
+                format!("Image: {}", image_node.metadata.filename)
+            }),
+            vector: image_node.embedding,
+            parent_id: None,
+            children_ids: vec![],
+            mentions: vec![],
+            created_at: image_node.created_at.to_rfc3339(),
+            updated_at: image_node.created_at.to_rfc3339(),
+            metadata: Some(serde_json::json!({
+                "image_data": base64::prelude::BASE64_STANDARD.encode(&image_node.image_data),
+                "filename": image_node.metadata.filename,
+                "mime_type": image_node.metadata.mime_type,
+                "width": image_node.metadata.width,
+                "height": image_node.metadata.height,
+                "exif_data": image_node.metadata.exif_data
+            })),
+        };
+
+        {
+            let mut nodes = self.nodes.lock().unwrap();
+            nodes.insert(universal_node.id.clone(), universal_node);
+        }
+
+        // TODO: Actually store in LanceDB table with proper image schema
+        
+        Ok(image_node.id)
+    }
+
+    async fn get_image_node(&self, id: &str) -> NodeSpaceResult<Option<ImageNode>> {
+        let nodes = self.nodes.lock().unwrap();
+        
+        if let Some(universal_node) = nodes.get(id) {
+            if universal_node.node_type == "image" {
+                // Convert back to ImageNode
+                let metadata = universal_node.metadata.as_ref().ok_or_else(|| {
+                    DataStoreError::InvalidNode("Image node missing metadata".to_string())
+                })?;
+
+                let image_data = base64::prelude::BASE64_STANDARD.decode(
+                    metadata.get("image_data")
+                        .and_then(|v| v.as_str())
+                        .ok_or_else(|| DataStoreError::InvalidNode("Missing image data".to_string()))?
+                ).map_err(|e| DataStoreError::InvalidNode(format!("Invalid base64 image data: {}", e)))?;
+
+                let image_node = ImageNode {
+                    id: universal_node.id.clone(),
+                    image_data,
+                    embedding: universal_node.vector.clone(),
+                    metadata: crate::ImageMetadata {
+                        filename: metadata.get("filename").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                        mime_type: metadata.get("mime_type").and_then(|v| v.as_str()).unwrap_or("image/jpeg").to_string(),
+                        width: metadata.get("width").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                        height: metadata.get("height").and_then(|v| v.as_u64()).unwrap_or(0) as u32,
+                        exif_data: metadata.get("exif_data").cloned(),
+                        description: if universal_node.content.starts_with("Image:") { None } else { Some(universal_node.content.clone()) },
+                    },
+                    created_at: chrono::DateTime::parse_from_rfc3339(&universal_node.created_at)
+                        .map_err(|e| DataStoreError::InvalidNode(format!("Invalid timestamp: {}", e)))?
+                        .with_timezone(&chrono::Utc),
+                };
+
+                return Ok(Some(image_node));
+            }
+        }
+        
+        Ok(None)
+    }
+
+    async fn search_multimodal(&self, query_embedding: Vec<f32>, types: Vec<NodeType>) -> NodeSpaceResult<Vec<Node>> {
+        let nodes = self.nodes.lock().unwrap();
+        let mut results = Vec::new();
+
+        // Convert NodeType enum to string filters
+        let type_filters: Vec<String> = types.into_iter().map(|t| match t {
+            NodeType::Text => "text".to_string(),
+            NodeType::Image => "image".to_string(),
+            NodeType::Date => "date".to_string(),
+            NodeType::Task => "task".to_string(),
+        }).collect();
+
+        for universal_node in nodes.values() {
+            // Filter by node types
+            if !type_filters.is_empty() && !type_filters.contains(&universal_node.node_type) {
+                continue;
+            }
+
+            let similarity = cosine_similarity(&query_embedding, &universal_node.vector);
+            if similarity > 0.1 { // Basic similarity threshold
+                let node = self.universal_to_node(universal_node.clone());
+                results.push((node, similarity));
+            }
+        }
+
+        // Sort by similarity and return just the nodes
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        Ok(results.into_iter().map(|(node, _)| node).collect())
+    }
+
+    async fn hybrid_multimodal_search(&self, query_embedding: Vec<f32>, config: &HybridSearchConfig) -> NodeSpaceResult<Vec<SearchResult>> {
+        let nodes = self.nodes.lock().unwrap();
+        let mut results = Vec::new();
+
+        for universal_node in nodes.values() {
+            let semantic_score = cosine_similarity(&query_embedding, &universal_node.vector);
+            
+            // Skip if below minimum threshold
+            if semantic_score < config.min_similarity_threshold as f32 {
+                continue;
+            }
+
+            // Calculate structural score (based on relationships)
+            let structural_score = if universal_node.parent_id.is_some() || !universal_node.children_ids.is_empty() {
+                0.8 // Has relationships
+            } else {
+                0.2 // Isolated node
+            };
+
+            // Calculate temporal score (recent nodes get higher scores)
+            let temporal_score = if let Ok(created_at) = chrono::DateTime::parse_from_rfc3339(&universal_node.created_at) {
+                let age_days = (chrono::Utc::now() - created_at.with_timezone(&chrono::Utc)).num_days();
+                if age_days <= 1 { 1.0 } else if age_days <= 7 { 0.8 } else { 0.5 }
+            } else {
+                0.5
+            };
+
+            // Cross-modal bonus for image-text combinations
+            let cross_modal_score = if config.enable_cross_modal && universal_node.node_type == "image" {
+                Some(0.9) // Boost for cross-modal queries
+            } else {
+                None
+            };
+
+            // Weighted final score
+            let final_score = (semantic_score * config.semantic_weight as f32) +
+                            (structural_score * config.structural_weight as f32) +
+                            (temporal_score * config.temporal_weight as f32) +
+                            cross_modal_score.unwrap_or(0.0) * 0.1;
+
+            let node = self.universal_to_node(universal_node.clone());
+            let search_result = SearchResult {
+                node,
+                score: final_score,
+                relevance_factors: RelevanceFactors {
+                    semantic_score,
+                    structural_score,
+                    temporal_score,
+                    cross_modal_score,
+                },
+            };
+
+            results.push(search_result);
+        }
+
+        // Sort by final score and apply limits
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        results.truncate(config.max_results);
+
+        Ok(results)
     }
 }
 

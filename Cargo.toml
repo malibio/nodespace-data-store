@@ -30,11 +30,9 @@ async-trait = "0.1"
 thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
-rand = "0.8"
+rand = { version = "0.8", features = ["std_rng"] }
 futures = "0.3"
-
-# SurrealDB (legacy - for migration compatibility)
-surrealdb = { version = "2.3.6", features = ["kv-mem", "kv-rocksdb"] }
+base64 = "0.22"
 
 [dev-dependencies]
 tokio-test = "0.4"
