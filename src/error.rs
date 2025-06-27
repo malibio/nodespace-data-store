@@ -9,6 +9,9 @@ pub enum DataStoreError {
     #[error("LanceDB error: {0}")]
     LanceDB(String),
 
+    #[error("Database error: {0}")]
+    Database(String),
+
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
 
@@ -17,6 +20,12 @@ pub enum DataStoreError {
 
     #[error("Invalid query: {0}")]
     InvalidQuery(String),
+
+    #[error("Invalid vector: expected {expected} dimensions, got {actual}")]
+    InvalidVector { expected: usize, actual: usize },
+
+    #[error("I/O error: {0}")]
+    IoError(String),
 }
 
 impl From<DataStoreError> for NodeSpaceError {
@@ -24,9 +33,14 @@ impl From<DataStoreError> for NodeSpaceError {
         match err {
             DataStoreError::SurrealDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::LanceDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
+            DataStoreError::Database(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::Serialization(_) => NodeSpaceError::SerializationError(err.to_string()),
             DataStoreError::NodeNotFound(_) => NodeSpaceError::NotFound(err.to_string()),
             DataStoreError::InvalidQuery(_) => NodeSpaceError::ValidationError(err.to_string()),
+            DataStoreError::InvalidVector { .. } => {
+                NodeSpaceError::ValidationError(err.to_string())
+            }
+            DataStoreError::IoError(_) => NodeSpaceError::IoError(err.to_string()),
         }
     }
 }

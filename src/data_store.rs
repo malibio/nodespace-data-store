@@ -1,8 +1,10 @@
-use crate::conversions::node_id_to_thing;
+use crate::conversions::{node_id_to_record_id, node_id_to_thing};
 use crate::error::DataStoreError;
+use crate::surrealdb_types::*;
 use async_trait::async_trait;
 use nodespace_core_types::{Node, NodeId, NodeSpaceResult};
 use surrealdb::engine::local::{Db, Mem, RocksDb};
+use surrealdb::sql::Value as SurrealValue;
 use surrealdb::Surreal;
 
 // DataStore trait - authoritative interface owned by this repository
@@ -63,20 +65,15 @@ impl SurrealDataStore {
 #[async_trait]
 impl DataStore for SurrealDataStore {
     async fn store_node(&self, node: Node) -> NodeSpaceResult<NodeId> {
-        let thing = node_id_to_thing(&node.id);
+        let record_id = node_id_to_record_id(&node.id);
 
-        // Create a node without the id field to avoid conflict
-        let node_data = serde_json::json!({
-            "content": node.content,
-            "metadata": node.metadata,
-            "created_at": node.created_at,
-            "updated_at": node.updated_at
-        });
+        // Convert Node to NodeRecord for proper SurrealDB 2.x typing
+        let node_record = NodeRecord::from(node.clone());
 
-        let _: Option<serde_json::Value> = self
+        let _created_record: Option<NodeRecord> = self
             .db
-            .create(thing)
-            .content(node_data)
+            .create(record_id)
+            .content(node_record)
             .await
             .map_err(DataStoreError::from)?;
 
@@ -84,32 +81,28 @@ impl DataStore for SurrealDataStore {
     }
 
     async fn get_node(&self, id: &NodeId) -> NodeSpaceResult<Option<Node>> {
-        let thing = node_id_to_thing(id);
+        let record_id = node_id_to_record_id(id);
 
-        let result: Option<serde_json::Value> =
-            self.db.select(thing).await.map_err(DataStoreError::from)?;
+        let result: Option<NodeRecord> = self
+            .db
+            .select(record_id)
+            .await
+            .map_err(DataStoreError::from)?;
 
         match result {
-            Some(data) => {
-                let mut node = Node::with_id(id.clone(), data["content"].clone());
-                if let Some(metadata) = data.get("metadata").filter(|v| !v.is_null()) {
-                    node = node.with_metadata(metadata.clone());
-                }
-                // Set timestamps from database
-                node.created_at = data["created_at"].as_str().unwrap_or("").to_string();
-                node.updated_at = data["updated_at"].as_str().unwrap_or("").to_string();
-                // Sibling pointers default to None (not stored in current schema)
-                Ok(Some(node))
-            }
+            Some(record) => Ok(Some(Node::from(record))),
             None => Ok(None),
         }
     }
 
     async fn delete_node(&self, id: &NodeId) -> NodeSpaceResult<()> {
-        let thing = node_id_to_thing(id);
+        let record_id = node_id_to_record_id(id);
 
-        let _deleted: Option<serde_json::Value> =
-            self.db.delete(thing).await.map_err(DataStoreError::from)?;
+        let _deleted: Option<NodeRecord> = self
+            .db
+            .delete(record_id)
+            .await
+            .map_err(DataStoreError::from)?;
 
         Ok(())
     }
@@ -121,76 +114,9 @@ impl DataStore for SurrealDataStore {
             .await
             .map_err(DataStoreError::from)?;
 
-        // Take the first result and convert to Vec<Node>
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
-
-        let mut nodes = Vec::new();
-        for value in values {
-            if let Some(node_data) = value.as_object() {
-                // Extract node ID from SurrealDB record - handle Thing format
-                let id_str = if let Some(id_val) = node_data.get("id") {
-                    if let Some(id_obj) = id_val.as_object() {
-                        // Handle nested SurrealDB Thing structure: {"tb": "nodes", "id": {"String": "uuid"}}
-                        if let Some(id_inner) = id_obj.get("id") {
-                            if let Some(string_obj) = id_inner.as_object() {
-                                if let Some(uuid_str) = string_obj.get("String") {
-                                    if let Some(uuid) = uuid_str.as_str() {
-                                        // Convert underscores back to hyphens for UUID format
-                                        uuid.replace("_", "-")
-                                    } else {
-                                        String::new()
-                                    }
-                                } else {
-                                    String::new()
-                                }
-                            } else {
-                                String::new()
-                            }
-                        } else {
-                            String::new()
-                        }
-                    } else if let Some(id_str) = id_val.as_str() {
-                        // Handle simple string format
-                        if let Some(stripped) = id_str.strip_prefix("nodes:") {
-                            stripped.replace("_", "-")
-                        } else {
-                            id_str.to_string()
-                        }
-                    } else {
-                        String::new()
-                    }
-                } else {
-                    continue;
-                };
-
-                let content = node_data
-                    .get("content")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null);
-
-                let mut node = Node::with_id(NodeId::from_string(id_str.to_string()), content);
-
-                if let Some(metadata) = node_data.get("metadata") {
-                    node = node.with_metadata(metadata.clone());
-                }
-
-                // Set timestamps from database
-                node.created_at = node_data
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                node.updated_at = node_data
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                // Sibling pointers default to None (not stored in current schema)
-                nodes.push(node);
-            }
-        }
-
+        // Take the first result and convert directly to Vec<Node>
+        // SurrealDB 2.x: Use direct Node deserialization instead of serde_json::Value
+        let nodes: Vec<Node> = result.take(0).map_err(DataStoreError::from)?;
         Ok(nodes)
     }
 
@@ -203,16 +129,14 @@ impl DataStore for SurrealDataStore {
         let from_thing = node_id_to_thing(from);
         let to_thing = node_id_to_thing(to);
 
+        // Create the relationship using correct SurrealDB RELATE syntax
         let relate_query = format!("RELATE {}->{}->{}", from_thing, rel_type, to_thing);
 
-        let mut result = self
-            .db
+        // Execute the query - don't try to deserialize the complex relationship result
+        self.db
             .query(relate_query)
             .await
             .map_err(DataStoreError::from)?;
-
-        // Extract the relationship ID from the result
-        let _value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::SurrealDB)?;
 
         Ok(())
     }
@@ -222,21 +146,16 @@ impl DataStore for SurrealDataStore {
         node: Node,
         embedding: Vec<f32>,
     ) -> NodeSpaceResult<NodeId> {
-        let thing = node_id_to_thing(&node.id);
+        let record_id = node_id_to_record_id(&node.id);
 
-        // Create a node with embedding vector
-        let node_data = serde_json::json!({
-            "content": node.content,
-            "metadata": node.metadata,
-            "created_at": node.created_at,
-            "updated_at": node.updated_at,
-            "embedding": embedding
-        });
+        // Convert Node to NodeRecord and add embedding
+        let mut node_record = NodeRecord::from(node.clone());
+        node_record.embedding = Some(embedding);
 
-        let _: Option<serde_json::Value> = self
+        let _created_record: Option<NodeRecord> = self
             .db
-            .create(thing)
-            .content(node_data)
+            .create(record_id)
+            .content(node_record)
             .await
             .map_err(DataStoreError::from)?;
 
@@ -248,6 +167,22 @@ impl DataStore for SurrealDataStore {
         embedding: Vec<f32>,
         limit: usize,
     ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        use surrealdb::sql::Thing;
+
+        // Create a simplified struct for search results
+        #[derive(serde::Deserialize)]
+        struct SearchResult {
+            id: Option<Thing>,
+            content: serde_json::Value,
+            #[serde(default)]
+            metadata: Option<serde_json::Value>,
+            #[serde(default)]
+            created_at: String,
+            #[serde(default)]
+            updated_at: String,
+            score: f32,
+        }
+
         // Use SurrealDB's vector search functionality
         let query = format!(
             "SELECT *, vector::similarity::cosine(embedding, {}) AS score FROM nodes WHERE embedding IS NOT NULL ORDER BY score DESC LIMIT {}",
@@ -257,95 +192,48 @@ impl DataStore for SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
+        // Use proper type deserialization with dedicated struct
+        let search_results: Vec<SearchResult> = result.take(0).map_err(DataStoreError::from)?;
 
-        let mut results = Vec::new();
-        for value in values {
-            if let Some(node_data) = value.as_object() {
-                // Extract node ID and score - handle SurrealDB Thing format
-                let id_str = if let Some(id_val) = node_data.get("id") {
-                    if let Some(id_obj) = id_val.as_object() {
-                        // Handle nested SurrealDB Thing structure: {"tb": "nodes", "id": {"String": "uuid"}}
-                        if let Some(id_inner) = id_obj.get("id") {
-                            if let Some(string_obj) = id_inner.as_object() {
-                                if let Some(uuid_str) = string_obj.get("String") {
-                                    if let Some(uuid) = uuid_str.as_str() {
-                                        // Convert underscores back to hyphens for UUID format
-                                        uuid.replace("_", "-")
-                                    } else {
-                                        String::new()
-                                    }
-                                } else {
-                                    String::new()
-                                }
-                            } else {
-                                String::new()
-                            }
-                        } else {
-                            String::new()
-                        }
-                    } else if let Some(id_str) = id_val.as_str() {
-                        // Handle simple string format
-                        if let Some(stripped) = id_str.strip_prefix("nodes:") {
-                            stripped.replace("_", "-")
-                        } else {
-                            id_str.to_string()
-                        }
-                    } else {
-                        String::new()
-                    }
+        let results = search_results
+            .into_iter()
+            .map(|sr| {
+                // Convert SearchResult to Node
+                let node_id = if let Some(thing) = sr.id {
+                    // Convert underscores back to hyphens for proper UUID format
+                    let id_str = thing.id.to_string().replace("_", "-");
+                    nodespace_core_types::NodeId::from_string(id_str)
                 } else {
-                    continue;
+                    nodespace_core_types::NodeId::new()
                 };
 
-                let score = node_data
-                    .get("score")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0) as f32;
+                let mut node = Node::with_id(node_id, sr.content);
 
-                let content = node_data
-                    .get("content")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null);
-
-                let mut node = Node::with_id(NodeId::from_string(id_str.to_string()), content);
-
-                if let Some(metadata) = node_data.get("metadata") {
-                    node = node.with_metadata(metadata.clone());
+                if let Some(metadata) = sr.metadata {
+                    node = node.with_metadata(metadata);
                 }
 
-                // Set timestamps from database
-                node.created_at = node_data
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                node.updated_at = node_data
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                node.created_at = sr.created_at;
+                node.updated_at = sr.updated_at;
 
-                // Sibling pointers default to None (not stored in current schema)
-
-                results.push((node, score));
-            }
-        }
+                (node, sr.score)
+            })
+            .collect();
 
         Ok(results)
     }
 
     async fn update_node_embedding(&self, id: &NodeId, embedding: Vec<f32>) -> NodeSpaceResult<()> {
-        let thing = node_id_to_thing(id);
+        let record_id = node_id_to_record_id(id);
 
-        // Update the embedding field
+        // Update the embedding field using typed approach
         let update_data = serde_json::json!({
             "embedding": embedding
         });
 
-        let _: Option<serde_json::Value> = self
+        let _updated: Option<NodeRecord> = self
             .db
-            .update(thing)
+            .update(record_id)
             .merge(update_data)
             .await
             .map_err(DataStoreError::from)?;
@@ -358,6 +246,22 @@ impl DataStore for SurrealDataStore {
         embedding: Vec<f32>,
         limit: usize,
     ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        use surrealdb::sql::Thing;
+
+        // Create a simplified struct for search results
+        #[derive(serde::Deserialize)]
+        struct SearchResult {
+            id: Option<Thing>,
+            content: serde_json::Value,
+            #[serde(default)]
+            metadata: Option<serde_json::Value>,
+            #[serde(default)]
+            created_at: String,
+            #[serde(default)]
+            updated_at: String,
+            score: f32,
+        }
+
         // Use SurrealDB's vector search functionality for semantic search
         let query = format!(
             "SELECT *, vector::similarity::cosine(embedding, {}) AS score FROM nodes WHERE embedding IS NOT NULL ORDER BY score DESC LIMIT {}",
@@ -367,86 +271,76 @@ impl DataStore for SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
+        // Use proper type deserialization with dedicated struct
+        let search_results: Vec<SearchResult> = result.take(0).map_err(DataStoreError::from)?;
 
-        let mut results = Vec::new();
-        for value in values {
-            if let Some(node_data) = value.as_object() {
-                // Extract node ID and score - handle SurrealDB Thing format
-                let id_str = if let Some(id_val) = node_data.get("id") {
-                    if let Some(id_obj) = id_val.as_object() {
-                        // Handle nested SurrealDB Thing structure: {"tb": "nodes", "id": {"String": "uuid"}}
-                        if let Some(id_inner) = id_obj.get("id") {
-                            if let Some(string_obj) = id_inner.as_object() {
-                                if let Some(uuid_str) = string_obj.get("String") {
-                                    if let Some(uuid) = uuid_str.as_str() {
-                                        // Convert underscores back to hyphens for UUID format
-                                        uuid.replace("_", "-")
-                                    } else {
-                                        String::new()
-                                    }
-                                } else {
-                                    String::new()
-                                }
-                            } else {
-                                String::new()
-                            }
-                        } else {
-                            String::new()
-                        }
-                    } else if let Some(id_str) = id_val.as_str() {
-                        // Handle simple string format
-                        if let Some(stripped) = id_str.strip_prefix("nodes:") {
-                            stripped.replace("_", "-")
-                        } else {
-                            id_str.to_string()
-                        }
-                    } else {
-                        String::new()
-                    }
+        let results = search_results
+            .into_iter()
+            .map(|sr| {
+                // Convert SearchResult to Node
+                let node_id = if let Some(thing) = sr.id {
+                    // Convert underscores back to hyphens for proper UUID format
+                    let id_str = thing.id.to_string().replace("_", "-");
+                    nodespace_core_types::NodeId::from_string(id_str)
                 } else {
-                    continue;
+                    nodespace_core_types::NodeId::new()
                 };
 
-                let score = node_data
-                    .get("score")
-                    .and_then(|v| v.as_f64())
-                    .unwrap_or(0.0) as f32;
+                let mut node = Node::with_id(node_id, sr.content);
 
-                let content = node_data
-                    .get("content")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null);
-
-                let mut node = Node::with_id(NodeId::from_string(id_str.to_string()), content);
-
-                if let Some(metadata) = node_data.get("metadata") {
-                    node = node.with_metadata(metadata.clone());
+                if let Some(metadata) = sr.metadata {
+                    node = node.with_metadata(metadata);
                 }
 
-                // Set timestamps from database
-                node.created_at = node_data
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                node.updated_at = node_data
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
+                node.created_at = sr.created_at;
+                node.updated_at = sr.updated_at;
 
-                // Sibling pointers default to None (not stored in current schema)
-
-                results.push((node, score));
-            }
-        }
+                (node, sr.score)
+            })
+            .collect();
 
         Ok(results)
     }
 }
 
 impl SurrealDataStore {
+    /// Get a text node specifically from the text table
+    pub async fn get_text_node(&self, node_id: &NodeId) -> NodeSpaceResult<Option<Node>> {
+        let thing_id = ("text", node_id.as_str().replace("-", "_"));
+
+        let result: Option<TextRecord> = self
+            .db
+            .select(thing_id)
+            .await
+            .map_err(DataStoreError::from)?;
+
+        match result {
+            Some(record) => Ok(Some(Node::from(record))),
+            None => Ok(None),
+        }
+    }
+
+    /// Create a relationship between text nodes
+    pub async fn create_text_relationship(
+        &self,
+        from: &NodeId,
+        to: &NodeId,
+        rel_type: &str,
+    ) -> NodeSpaceResult<()> {
+        let from_thing = format!("text:{}", from.as_str().replace("-", "_"));
+        let to_thing = format!("text:{}", to.as_str().replace("-", "_"));
+
+        // Create the relationship using correct SurrealDB RELATE syntax for text nodes
+        let relate_query = format!("RELATE {}->{}->{}", from_thing, rel_type, to_thing);
+
+        self.db
+            .query(relate_query)
+            .await
+            .map_err(DataStoreError::from)?;
+
+        Ok(())
+    }
+
     /// Get all relationships for a given node
     pub async fn get_node_relationships(
         &self,
@@ -459,7 +353,7 @@ impl SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let value: surrealdb::sql::Value = result.take(0).map_err(DataStoreError::SurrealDB)?;
+        let value: surrealdb::Value = result.take(0).map_err(DataStoreError::from)?;
 
         let json = serde_json::to_value(&value).map_err(DataStoreError::from)?;
 
@@ -476,7 +370,7 @@ impl SurrealDataStore {
         let thing_id = ("date", date_value);
 
         // Check if date node already exists by trying to select it
-        let existing: Option<serde_json::Value> = self
+        let existing: Option<DateRecord> = self
             .db
             .select(thing_id)
             .await
@@ -488,17 +382,18 @@ impl SurrealDataStore {
         }
 
         // Create new date node with date_value as the ID
-        let date_data = serde_json::json!({
-            "date_value": date_value,
-            "description": description.unwrap_or(""),
-            "created_at": chrono::Utc::now().to_rfc3339(),
-            "updated_at": chrono::Utc::now().to_rfc3339()
-        });
+        let date_record = DateRecord {
+            id: None, // Will be set by SurrealDB
+            date_value: date_value.to_string(),
+            description: description.map(|s| s.to_string()),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
 
-        let _: Option<serde_json::Value> = self
+        let _created: Option<DateRecord> = self
             .db
             .create(thing_id)
-            .content(date_data)
+            .content(date_record)
             .await
             .map_err(DataStoreError::from)?;
 
@@ -512,18 +407,19 @@ impl SurrealDataStore {
         parent_date_value: Option<&str>,
     ) -> NodeSpaceResult<NodeId> {
         let node_id = NodeId::new();
-        let text_data = serde_json::json!({
-            "content": content,
-            "parent_date": parent_date_value,
-            "created_at": chrono::Utc::now().to_rfc3339(),
-            "updated_at": chrono::Utc::now().to_rfc3339()
-        });
+        let text_record = TextRecord {
+            id: None, // Will be set by SurrealDB
+            content: content.to_string(),
+            parent_date: parent_date_value.map(|s| s.to_string()),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        };
 
         let thing_id = ("text", node_id.as_str().replace("-", "_"));
-        let _: Option<serde_json::Value> = self
+        let _created: Option<TextRecord> = self
             .db
             .create(thing_id)
-            .content(text_data)
+            .content(text_record)
             .await
             .map_err(DataStoreError::from)?;
 
@@ -556,41 +452,10 @@ impl SurrealDataStore {
             .query(text_query)
             .await
             .map_err(DataStoreError::from)?;
-        let text_values: Vec<serde_json::Value> =
-            text_result.take(0).map_err(DataStoreError::SurrealDB)?;
+        let text_records: Vec<TextRecord> =
+            text_result.take(0).map_err(DataStoreError::from)?;
 
-        let mut nodes = Vec::new();
-        for value in text_values {
-            if let Some(text_data) = value.as_object() {
-                // Convert text record to Node format
-                let id_str = self.extract_node_id_from_text_value(text_data.get("id"));
-                let content = text_data
-                    .get("content")
-                    .cloned()
-                    .unwrap_or(serde_json::Value::Null);
-
-                let mut node = Node::with_id(NodeId::from_string(id_str), content);
-
-                if let Some(metadata) = text_data.get("metadata") {
-                    node = node.with_metadata(metadata.clone());
-                }
-
-                // Set timestamps from database
-                node.created_at = text_data
-                    .get("created_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-                node.updated_at = text_data
-                    .get("updated_at")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("")
-                    .to_string();
-
-                // Sibling pointers default to None (not stored in current schema)
-                nodes.push(node);
-            }
-        }
+        let nodes: Vec<Node> = text_records.into_iter().map(Node::from).collect();
 
         Ok(nodes)
     }
@@ -604,32 +469,12 @@ impl SurrealDataStore {
         let query = format!("SELECT * FROM {}->contains", from_thing);
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
-        let values: Vec<serde_json::Value> = result.take(0).map_err(DataStoreError::SurrealDB)?;
-        Ok(values)
-    }
+        let values: Vec<SurrealValue> = result.take(0).map_err(DataStoreError::from)?;
 
-    /// Helper method to extract node ID from text table SurrealDB value
-    fn extract_node_id_from_text_value(&self, id_val: Option<&serde_json::Value>) -> String {
-        if let Some(id_val) = id_val {
-            if let Some(id_obj) = id_val.as_object() {
-                // Handle nested SurrealDB Thing structure: {"tb": "text", "id": {"String": "uuid"}}
-                if let Some(id_inner) = id_obj.get("id") {
-                    if let Some(string_obj) = id_inner.as_object() {
-                        if let Some(uuid_str) = string_obj.get("String") {
-                            if let Some(uuid) = uuid_str.as_str() {
-                                return uuid.replace("_", "-");
-                            }
-                        }
-                    }
-                }
-            } else if let Some(id_str) = id_val.as_str() {
-                // Handle simple string format
-                if let Some(stripped) = id_str.strip_prefix("text:") {
-                    return stripped.replace("_", "-");
-                }
-                return id_str.to_string();
-            }
-        }
-        String::new()
+        // Convert SurrealValues to JSON
+        let json_values: Vec<serde_json::Value> =
+            values.into_iter().map(|v| v.into_json()).collect();
+
+        Ok(json_values)
     }
 }
