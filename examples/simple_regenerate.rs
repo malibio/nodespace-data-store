@@ -6,7 +6,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("📌 This demonstrates the migration readiness state");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Phase 1: Count current content
     println!("\n📋 Phase 1: Assessing current database state...");

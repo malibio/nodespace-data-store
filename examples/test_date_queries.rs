@@ -4,7 +4,7 @@ use nodespace_data_store::{DataStore, SurrealDataStore};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Testing DateNode query patterns...");
 
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Test direct SurrealQL queries for different patterns
     let test_date = "2025-04-15"; // Use a date that had data generated

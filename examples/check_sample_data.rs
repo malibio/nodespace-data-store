@@ -5,7 +5,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Checking sample data content in database...");
 
     // Initialize the data store
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // First, let's do a raw query to see what's actually in the database
     println!("\n=== Raw query for text table ===");
