@@ -8,7 +8,7 @@ description = "Database, persistence, and vector storage for NodeSpace"
 nodespace-core-types = { path = "../nodespace-core-types" }
 
 # LanceDB Core (primary database)
-lancedb = "0.17"
+lancedb = { version = "0.17", default-features = false }
 arrow-array = "53"
 arrow-schema = "53"
 arrow-data = "53"
@@ -34,7 +34,12 @@ rand = "0.8"
 futures = "0.3"
 
 # SurrealDB (legacy - for migration compatibility)
-surrealdb = { version = "2.3.6", features = ["kv-mem", "kv-rocksdb"] }
+surrealdb = { version = "2.3.6", features = ["kv-mem", "kv-rocksdb"], optional = true }
+
+[features]
+default = ["lance-only"]
+lance-only = []  # Default: only LanceDB, no SurrealDB
+migration = ["surrealdb"]  # Enable SurrealDB for data migration only
 
 [dev-dependencies]
 tokio-test = "0.4"
