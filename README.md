@@ -3,7 +3,7 @@
 👉 **STEP 2**: Check Linear for assigned tasks
 👉 **STEP 3**: Repository-specific patterns below
 
-**This README.md only contains**: Repository-specific SurrealDB and database patterns
+**This README.md only contains**: Repository-specific LanceDB and database patterns
 
 # NodeSpace Data Store
 
@@ -20,23 +20,23 @@ This repository implements the complete data layer for NodeSpace, providing pers
 
 ## 📦 Key Features
 
-- **SurrealDB backend** - Multi-model database (Document + Graph + Vector)
-- **Vector search** - Native vector<float, DIM> embedding similarity search
-- **Graph relationships** - Native RELATE statements for entity connections
-- **Dynamic schemas** - Schema evolution with "ghost properties"
-- **SurrealQL support** - LLM-friendly query language
+- **LanceDB backend** - High-performance vector database with Universal Document Schema
+- **Cross-modal search** - Text and image embeddings (384/512-dim) with hybrid scoring
+- **Hierarchical relationships** - JSON-based parent-child connections for document structure
+- **Dynamic schemas** - Schema evolution with flexible metadata "ghost properties"
+- **Performance optimized** - <2s search times with native vector operations
 
 ## 🔗 Dependencies
 
 - **`nodespace-core-types`** - Shared data structures (NodeId, Node, NodeSpaceResult)
-- **SurrealDB** - Multi-model database engine
-- **serde_json** - For flexible content serialization
+- **LanceDB** - High-performance vector database engine
+- **serde_json** - For flexible content serialization and metadata
 
 ## 🏗️ Interface Ownership
 
 This repository **owns the `DataStore` trait** as part of NodeSpace's distributed contract architecture:
 - **Exports**: `DataStore` trait interface for other services to import
-- **Implements**: Complete SurrealDB-based data persistence layer
+- **Implements**: Complete LanceDB-based data persistence layer with cross-modal search
 - **Distributed pattern**: Other repositories import `use nodespace_data_store::DataStore;`
 
 ## 🚀 Getting Started
@@ -54,10 +54,10 @@ This repository **owns the `DataStore` trait** as part of NodeSpace's distribute
 nodespace-data-store = { git = "https://github.com/malibio/nodespace-data-store" }
 
 # Use in your code
-use nodespace_data_store::{DataStore, SurrealDataStore};
+use nodespace_data_store::{DataStore, LanceDataStore};
 use nodespace_core_types::Node;
 
-let store = SurrealDataStore::new("./data/nodes.db").await?;
+let store = LanceDataStore::new("./data/nodes.db").await?;
 let node = store.store_node(node).await?;
 ```
 
@@ -75,13 +75,13 @@ Part of the [NodeSpace system architecture](../nodespace-system-design/README.md
 
 ## 🔄 MVP Implementation
 
-The initial implementation focuses on SurrealDB-native operations:
+The implementation focuses on LanceDB Universal Document Schema with cross-modal capabilities:
 
-1. **Store nodes** - CREATE statements with serde_json::Value content
-2. **Graph relationships** - RELATE statements between entities
-3. **Vector search** - Native vector<float, DIM> similarity operations
-4. **SurrealQL queries** - Custom query execution
-5. **Node retrieval** - SELECT statements by NodeId
+1. **Store nodes** - Universal Document Schema with flexible serde_json::Value content
+2. **Hierarchical relationships** - JSON-based parent-child connections for document structure  
+3. **Vector search** - Native LanceDB vector similarity with 384/512-dimensional embeddings
+4. **Cross-modal search** - Text and image search with hybrid scoring algorithms
+5. **Node retrieval** - Fast lookup by NodeId with metadata filtering and relationship traversal
 
 ## 🧪 Testing
 
@@ -89,8 +89,8 @@ The initial implementation focuses on SurrealDB-native operations:
 # Run all tests including integration tests
 cargo test
 
-# Test with sample data
-cargo run --example create_sample_data
+# Load hierarchical sample data for testing
+cargo run --example load_shared_sample_entry
 
 # Benchmark search performance
 cargo bench

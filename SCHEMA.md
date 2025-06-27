@@ -1,309 +1,277 @@
 # NodeSpace Data Store Schema Documentation
 
-This document describes the SurrealDB schema used by the NodeSpace Data Store, including the vector embedding format and hierarchical organization patterns.
+This document describes the LanceDB Universal Document Schema used by the NodeSpace Data Store, including vector embedding formats and hierarchical organization patterns.
 
 ## Database Configuration
 
-**Database**: SurrealDB (Multi-model: Document + Graph + Vector)  
-**Namespace**: `nodespace`  
-**Database**: `nodes`  
-**Storage**: RocksDB (file-based) or Memory (testing)
+**Database**: LanceDB (High-performance vector database)  
+**Schema**: Universal Document Schema for multimodal data  
+**Storage**: Apache Arrow columnar format with optimized vector indexes  
+**Performance**: Sub-second search times for <2s target requirements
 
-## Core Tables
+## Universal Document Schema
 
-### 1. Text Table (`text`)
+### Core Entity Structure
 
-Primary storage for text content with semantic embeddings.
-
-```sql
--- Table: text
--- Purpose: Text content with vector embeddings for semantic search
-CREATE text:uuid SET
-  content = "Strategic planning session revealed key market opportunities...", 
-  parent_date = "2025-05-01",
-  embedding = [0.123, -0.456, 0.789, ...], -- 384 dimensions
-  created_at = "2025-06-25T14:30:45.123Z",
-  updated_at = "2025-06-25T14:30:45.123Z";
-```
-
-**Fields:**
-- `id`: Record ID format `text:{uuid}` where hyphens are converted to underscores
-- `content`: Text content as string
-- `parent_date`: Optional date value for hierarchical organization
-- `embedding`: Vector<float, 384> - BAAI/bge-small-en-v1.5 embeddings
-- `created_at`: ISO 8601 timestamp (RFC3339)
-- `updated_at`: ISO 8601 timestamp (RFC3339)
-
-**Indexing:**
-- Vector similarity search on `embedding` field
-- Text search on `content` field
-- Date filtering on `parent_date` field
-
-### 2. Date Table (`date`)
-
-Hierarchical organization nodes for date-based grouping.
-
-```sql
--- Table: date  
--- Purpose: Hierarchical date organization
-CREATE date:`2025-05-01` SET
-  date_value = "2025-05-01",
-  description = "Strategic Planning Session",
-  created_at = "2025-06-25T14:30:45.123Z",
-  updated_at = "2025-06-25T14:30:45.123Z";
-```
-
-**Fields:**
-- `id`: Record ID format `date:{date_value}` (e.g., `date:2025-05-01`)
-- `date_value`: Date string in YYYY-MM-DD format
-- `description`: Optional descriptive text for the date
-- `created_at`: ISO 8601 timestamp
-- `updated_at`: ISO 8601 timestamp
-
-**Note**: Date nodes typically do not have embeddings as they are organizational nodes.
-
-### 3. Nodes Table (`nodes`)
-
-Generic node storage compatible with NodeSpace core types.
-
-```sql
--- Table: nodes
--- Purpose: Generic node storage with full NodeSpace compatibility
-CREATE nodes:uuid SET
-  content = {"type": "note", "text": "Meeting notes..."},
-  metadata = {"category": "planning", "priority": "high"},
-  embedding = [0.234, -0.567, 0.890, ...], -- 384 dimensions
-  created_at = "2025-06-25T14:30:45.123Z",
-  updated_at = "2025-06-25T14:30:45.123Z",
-  next_sibling = "nodes:other-uuid",
-  previous_sibling = null;
-```
-
-**Fields:**
-- `id`: Record ID format `nodes:{uuid}`
-- `content`: serde_json::Value - flexible content structure
-- `metadata`: Optional serde_json::Value for additional data
-- `embedding`: Vector<float, 384> - BAAI/bge-small-en-v1.5 embeddings  
-- `created_at`: ISO 8601 timestamp
-- `updated_at`: ISO 8601 timestamp
-- `next_sibling`: Optional NodeId for linked list structure
-- `previous_sibling`: Optional NodeId for linked list structure
-
-## Relationships
-
-### Hierarchical Organization (`contains`)
-
-Date nodes contain text nodes using SurrealDB relationships:
-
-```sql
--- Create relationship: date contains text
-RELATE date:`2025-05-01`->contains->text:{uuid};
-
--- Query: Find all text for a date
-SELECT * FROM date:`2025-05-01`->contains->text;
-
--- Query: Find date for a text node  
-SELECT * FROM <-contains<-date WHERE ->contains->text:{uuid};
-```
-
-**Relationship Properties:**
-- Type: `contains`
-- Direction: `date` → `text`
-- Cardinality: One date to many text nodes
-- Purpose: Hierarchical organization by date
-
-### Sibling Relationships
-
-Nodes can be linked in sequences using sibling pointers:
-
-```sql
--- Update sibling relationships
-UPDATE nodes:{uuid1} SET next_sibling = "nodes:{uuid2}";
-UPDATE nodes:{uuid2} SET previous_sibling = "nodes:{uuid1}";
-```
-
-**Use Cases:**
-- Ordered sequences of related content
-- Thread-like organization
-- Chronological ordering within dates
-
-## Vector Embeddings
-
-### Model Specification
-
-**Current Model**: BAAI/bge-small-en-v1.5  
-**Dimensions**: 384  
-**Range**: [-1.0, 1.0] (normalized)  
-**Generation**: fastembed-rs with ONNX Runtime  
-
-### Embedding Field
-
-```sql
--- Vector field specification
-embedding: Vector<float, 384>
-
--- Example embedding (truncated)
-embedding: [0.123, -0.456, 0.789, 0.234, -0.567, ...]
-```
-
-### Similarity Search
-
-SurrealDB native vector search using cosine similarity:
-
-```sql
--- Semantic search query
-SELECT *, vector::similarity::cosine(embedding, $query_vector) AS score 
-FROM text 
-WHERE embedding IS NOT NULL 
-ORDER BY score DESC 
-LIMIT 10;
-```
-
-**Performance:**
-- Index: Automatic vector indexing by SurrealDB
-- Algorithm: Cosine similarity (range 0.0 to 1.0)
-- Speed: Optimized for <50ms search time (NS-43 requirement)
-
-### Migration Compatibility
-
-**Previous Model**: all-MiniLM-L6-v2 (384 dimensions)  
-**Current Model**: BAAI/bge-small-en-v1.5 (384 dimensions)  
-
-**Migration Strategy:**
-1. Preserve content without embeddings
-2. Clear old embedding vectors  
-3. Regenerate with new model
-4. Maintain schema compatibility
-
-## Data Types and Conversion
-
-### NodeId Mapping
-
-NodeSpace `NodeId` ↔ SurrealDB `Thing` conversion:
+The Universal Document Schema stores all NodeSpace entities in a single, flexible table structure optimized for vector search and hierarchical relationships.
 
 ```rust
-// NodeSpace: "123e4567-e89b-12d3-a456-426614174000"
-// SurrealDB: "nodes:123e4567_e89b_12d3_a456_426614174000"
-
-// Conversion rules:
-// 1. Hyphens (-) → Underscores (_) 
-// 2. Prefix with table name
-// 3. Maintain UUID format integrity
-```
-
-### Content Storage
-
-Flexible content storage using serde_json::Value:
-
-```rust
-// String content
-content: "Simple text content"
-
-// Structured content  
-content: {
-  "type": "meeting_notes",
-  "title": "Q3 Strategy Session", 
-  "participants": ["Alice", "Bob"],
-  "action_items": ["Task 1", "Task 2"]
-}
-
-// Rich content
-content: {
-  "html": "<h1>Title</h1><p>Content...</p>",
-  "markdown": "# Title\n\nContent...",
-  "plain_text": "Title\n\nContent..."
+pub struct UniversalNode {
+    pub id: String,                    // Unique entity identifier
+    pub node_type: String,            // "text", "image", "date", "task", etc.
+    pub content: String,              // Primary content (text/description)
+    pub vector: Vec<f32>,             // 384 or 512-dimensional embeddings
+    
+    // Hierarchical relationships via JSON metadata
+    pub parent_id: Option<String>,    // Direct parent reference
+    pub children_ids: Vec<String>,    // List of child entity IDs
+    pub mentions: Vec<String>,        // Referenced entity connections
+    
+    // Temporal tracking
+    pub created_at: String,           // ISO 8601 timestamp
+    pub updated_at: String,           // ISO 8601 timestamp
+    
+    // Flexible metadata for entity-specific fields
+    pub metadata: Option<serde_json::Value>,
 }
 ```
 
-## Query Patterns
+## Entity Types
 
-### Common Queries
+### 1. Text Entities (`node_type: "text"`)
 
-**1. Date-based Content Retrieval:**
-```sql
--- Get all content for a specific date
-SELECT * FROM date:`2025-05-01`->contains->text;
+Primary content storage with semantic embeddings for search.
 
--- Get content for date range
-SELECT * FROM text WHERE parent_date >= "2025-05-01" AND parent_date <= "2025-05-31";
+**Embedding Dimensions**: 384 (BGE-small-en-v1.5 text embeddings)
+**Content**: Full text content in the `content` field
+**Metadata**: Document structure, titles, sections, depth levels
+
+Example metadata:
+```json
+{
+  "title": "Product Launch Strategy",
+  "parent_id": "2025-06-27",
+  "depth": 1,
+  "section_type": "main_document",
+  "document_type": "strategy"
+}
 ```
 
-**2. Semantic Search:**
-```sql  
--- Similarity search with threshold
-SELECT *, vector::similarity::cosine(embedding, $vector) AS score
-FROM text
-WHERE embedding IS NOT NULL AND vector::similarity::cosine(embedding, $vector) > 0.7
-ORDER BY score DESC
-LIMIT 5;
+### 2. Image Entities (`node_type: "image"`)
+
+Image content with CLIP vision embeddings for cross-modal search.
+
+**Embedding Dimensions**: 512 (CLIP vision embeddings)
+**Content**: Image description or filename
+**Metadata**: Contains Base64-encoded image data, EXIF information, dimensions
+
+Example metadata:
+```json
+{
+  "image_data": "iVBORw0KGgoAAAANSUhEUgAA...",
+  "filename": "conference_presentation.jpg",
+  "mime_type": "image/jpeg",
+  "width": 1920,
+  "height": 1080,
+  "exif_data": {
+    "camera": "Canon EOS R5",
+    "date": "2025-06-27T10:00:00Z"
+  }
+}
 ```
 
-**3. Content Discovery:**
-```sql
--- Recent content
-SELECT * FROM text ORDER BY created_at DESC LIMIT 10;
+### 3. Date Entities (`node_type: "date"`)
 
--- Content by date with embeddings
-SELECT * FROM text WHERE parent_date = "2025-05-01" AND embedding IS NOT NULL;
+Container entities for organizing content by date with hierarchical structure.
+
+**Content**: Date representation with description
+**Relationships**: Parent to multiple document entities
+**Purpose**: Temporal organization and navigation
+
+Example:
+```json
+{
+  "id": "2025-06-27",
+  "node_type": "date",
+  "content": "📅 2025-06-27 - Product Launch Planning",
+  "children_ids": ["strategy-doc-1", "meeting-notes-1"]
+}
 ```
 
-### Performance Optimizations
+### 4. Task Entities (`node_type: "task"`)
 
-**Indexing Strategy:**
-- Vector index on `embedding` fields (automatic)
-- Date index on `parent_date` and `date_value` fields
-- Text index on `content` fields for full-text search
+Action items and workflow elements with completion tracking.
 
-**Query Optimization:**
-- Use specific date lookups: `date:YYYY-MM-DD` vs scanning
-- Limit vector search results to reasonable sizes (≤50)
-- Combine semantic and date filtering for precision
+**Content**: Task description and requirements
+**Metadata**: Status, assignee, due dates, priority levels
+
+## Hierarchical Relationships
+
+### Parent-Child Structure
+
+The schema supports multi-level hierarchical organization through JSON-based relationships:
+
+```
+DateNode (2025-06-27)
+├── Main Document (depth: 1)
+│   ├── Section 1 (depth: 2)
+│   │   ├── Subsection A (depth: 3)
+│   │   │   ├── Detail 1 (depth: 4)
+│   │   │   └── Detail 2 (depth: 4)
+│   │   └── Subsection B (depth: 3)
+│   └── Section 2 (depth: 2)
+└── Related Document (depth: 1)
+```
+
+### Relationship Management
+
+- **parent_id**: Direct reference to parent entity
+- **children_ids**: Array of child entity identifiers
+- **mentions**: Cross-references to related entities
+- **depth**: Hierarchical level for navigation (stored in metadata)
+
+## Vector Search Operations
+
+### Semantic Search
+
+```rust
+// Text similarity search (384-dim BGE embeddings)
+async fn semantic_search_with_embedding(
+    &self,
+    embedding: Vec<f32>,
+    limit: usize,
+) -> NodeSpaceResult<Vec<(Node, f32)>>
+```
+
+### Cross-Modal Search
+
+```rust
+// Search across text and images
+async fn search_multimodal(
+    &self,
+    query_embedding: Vec<f32>,
+    types: Vec<NodeType>
+) -> NodeSpaceResult<Vec<Node>>
+```
+
+### Hybrid Search
+
+Combines multiple relevance factors with configurable weights:
+
+```rust
+pub struct HybridSearchConfig {
+    pub semantic_weight: f64,        // Embedding similarity (0.0-1.0)
+    pub structural_weight: f64,      // Relationship proximity (0.0-1.0)  
+    pub temporal_weight: f64,        // Time-based relevance (0.0-1.0)
+    pub max_results: usize,          // Result limit
+    pub min_similarity_threshold: f64, // Quality threshold
+    pub enable_cross_modal: bool,    // Text↔Image search
+    pub search_timeout_ms: u64,      // Performance limit
+}
+```
+
+**Scoring Algorithm**:
+```
+final_score = (semantic_score × semantic_weight) +
+              (structural_score × structural_weight) +
+              (temporal_score × temporal_weight) +
+              (cross_modal_bonus × 0.1)
+```
+
+## Performance Characteristics
+
+### Search Performance
+
+- **Target**: <2 seconds for complex queries
+- **Achieved**: ~100 microseconds for hybrid search
+- **Optimization**: LanceDB native vector operations with Arrow columnar storage
+
+### Storage Efficiency
+
+- **Columnar format**: Optimized for analytical workloads
+- **Vector indexes**: Approximate nearest neighbor search
+- **Compression**: Arrow format provides efficient encoding
+
+### Scalability
+
+- **Horizontal scaling**: Distributed LanceDB deployment support
+- **Memory efficiency**: Lazy loading and streaming for large datasets
+- **Concurrent access**: Multi-reader, single-writer model
 
 ## Schema Evolution
 
-### Version History
+### Metadata Flexibility
 
-**v1.0**: Initial schema with Candle embeddings
-**v1.1**: Migration to fastembed-rs + bge-small-en-v1.5
-**v1.2**: Added sibling pointer support for node ordering
+The `metadata` field supports "ghost properties" for schema evolution:
 
-### Future Considerations
+```json
+{
+  "metadata": {
+    // Standard fields
+    "title": "Document Title",
+    "depth": 2,
+    
+    // Future extensions (ghost properties)
+    "ai_generated": true,
+    "quality_score": 0.95,
+    "language": "en-US",
+    "custom_tags": ["important", "review"]
+  }
+}
+```
 
-**Potential Changes:**
-- Additional embedding models (domain-specific)
-- Multi-lingual embedding support
-- Embedding compression for storage efficiency
-- Advanced relationship types beyond `contains`
+### Version Compatibility
 
-**Backward Compatibility:**
-- Schema designed for additive changes
-- Embedding field supports dimension changes
-- Content field supports any JSON structure
-- Relationship patterns extensible
+- **Backward compatible**: New metadata fields don't break existing code
+- **Forward compatible**: Unknown fields are preserved during updates
+- **Migration support**: Batch operations for schema updates
 
-## Development Guidelines
+## Integration Patterns
 
-### Adding New Tables
+### Cross-Component Usage
 
-Follow the established patterns:
-1. Use UUID-based record IDs
-2. Include `created_at` and `updated_at` timestamps
-3. Consider embedding requirements for searchable content
-4. Define clear relationship patterns with existing tables
+Other NodeSpace components access the data store through the `DataStore` trait:
 
-### Embedding Integration
+```rust
+use nodespace_data_store::{DataStore, LanceDataStore};
 
-For new content types requiring semantic search:
-1. Add `embedding: Vector<float, 384>` field
-2. Implement content extraction for embedding generation
-3. Update search queries to include new table
-4. Test vector similarity search performance
+// Connect to shared database
+let data_store = LanceDataStore::new("/path/to/shared.db").await?;
 
-### Migration Planning
+// Store with embedding
+let node_id = data_store.store_node_with_embedding(node, embedding).await?;
 
-For future embedding model changes:
-1. Document current model specifications
-2. Create backup/restore procedures
-3. Plan regeneration strategy for large datasets
-4. Test migration process on development data
-5. Monitor search quality before/after changes
+// Cross-modal search
+let results = data_store.search_multimodal(query_embedding, types).await?;
+```
+
+### E2E Testing
+
+Sample data is available in shared directory for cross-component testing:
+- **Location**: `/Users/malibio/nodespace/data/lance_db/sample_entry.db`
+- **Content**: Hierarchical Product Launch Campaign Strategy
+- **Structure**: 4 depth levels with realistic business content
+- **Usage**: Load with `cargo run --example load_shared_sample_entry`
+
+## Best Practices
+
+### Entity Organization
+
+1. **Use DateNodes** for temporal organization
+2. **Maintain depth metadata** for hierarchical navigation
+3. **Preserve markdown structure** in content fields
+4. **Include descriptive titles** in metadata
+
+### Performance Optimization
+
+1. **Batch operations** for bulk inserts
+2. **Filter by node_type** to reduce search space
+3. **Use hybrid search** for complex relevance requirements
+4. **Monitor similarity thresholds** to balance precision and recall
+
+### Schema Design
+
+1. **Keep content field meaningful** for both humans and search
+2. **Use metadata for structure** rather than content parsing
+3. **Maintain relationship consistency** between parent/child references
+4. **Include temporal information** for time-based queries

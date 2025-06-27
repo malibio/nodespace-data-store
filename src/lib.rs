@@ -42,8 +42,16 @@ pub trait DataStore {
     // NEW: Cross-modal search methods for NS-81
     async fn create_image_node(&self, image_node: ImageNode) -> NodeSpaceResult<String>;
     async fn get_image_node(&self, id: &str) -> NodeSpaceResult<Option<ImageNode>>;
-    async fn search_multimodal(&self, query_embedding: Vec<f32>, types: Vec<NodeType>) -> NodeSpaceResult<Vec<Node>>;
-    async fn hybrid_multimodal_search(&self, query_embedding: Vec<f32>, config: &HybridSearchConfig) -> NodeSpaceResult<Vec<SearchResult>>;
+    async fn search_multimodal(
+        &self,
+        query_embedding: Vec<f32>,
+        types: Vec<NodeType>,
+    ) -> NodeSpaceResult<Vec<Node>>;
+    async fn hybrid_multimodal_search(
+        &self,
+        query_embedding: Vec<f32>,
+        config: &HybridSearchConfig,
+    ) -> NodeSpaceResult<Vec<SearchResult>>;
 }
 
 // Cross-modal types for NS-81 implementation
@@ -76,13 +84,13 @@ pub enum NodeType {
 
 #[derive(Debug, Clone)]
 pub struct HybridSearchConfig {
-    pub semantic_weight: f64,        // 0.0-1.0, semantic similarity
-    pub structural_weight: f64,      // 0.0-1.0, relationship proximity  
-    pub temporal_weight: f64,        // 0.0-1.0, time-based relevance
-    pub max_results: usize,          // Maximum results to return
+    pub semantic_weight: f64,          // 0.0-1.0, semantic similarity
+    pub structural_weight: f64,        // 0.0-1.0, relationship proximity
+    pub temporal_weight: f64,          // 0.0-1.0, time-based relevance
+    pub max_results: usize,            // Maximum results to return
     pub min_similarity_threshold: f64, // Minimum similarity score
-    pub enable_cross_modal: bool,    // Allow text→image search
-    pub search_timeout_ms: u64,      // Maximum search time
+    pub enable_cross_modal: bool,      // Allow text→image search
+    pub search_timeout_ms: u64,        // Maximum search time
 }
 
 #[derive(Debug, Clone)]
