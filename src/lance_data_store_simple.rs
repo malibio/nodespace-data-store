@@ -52,7 +52,7 @@ impl LanceDataStore {
         let connection = connect(db_path)
             .execute()
             .await
-            .map_err(|e| DataStoreError::LanceDB(format!("LanceDB connection failed: {}", e)))?;
+            .map_err(|e| DataStoreError::LanceDBConnection(format!("LanceDB connection failed: {}", e)))?;
 
         let instance = Self {
             connection,
