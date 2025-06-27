@@ -1,10 +1,18 @@
-use crate::conversions::{node_id_to_record_id, node_id_to_thing};
-use crate::error::DataStoreError;
-use crate::surrealdb_types::*;
 use async_trait::async_trait;
 use nodespace_core_types::{Node, NodeId, NodeSpaceResult};
+
+// SurrealDB-related imports (only when migration feature is enabled)
+#[cfg(feature = "migration")]
+use crate::conversions::{node_id_to_record_id, node_id_to_thing};
+#[cfg(feature = "migration")]
+use crate::error::DataStoreError;
+#[cfg(feature = "migration")]
+use crate::surrealdb_types::*;
+#[cfg(feature = "migration")]
 use surrealdb::engine::local::{Db, Mem, RocksDb};
+#[cfg(feature = "migration")]
 use surrealdb::sql::Value as SurrealValue;
+#[cfg(feature = "migration")]
 use surrealdb::Surreal;
 
 // DataStore trait - authoritative interface owned by this repository
@@ -42,10 +50,12 @@ pub trait DataStore {
     ) -> NodeSpaceResult<Vec<(Node, f32)>>;
 }
 
+#[cfg(feature = "migration")]
 pub struct SurrealDataStore {
     db: Surreal<Db>,
 }
 
+#[cfg(feature = "migration")]
 impl SurrealDataStore {
     pub async fn new(path: &str) -> Result<Self, DataStoreError> {
         let db = if path == "memory" {
@@ -62,6 +72,7 @@ impl SurrealDataStore {
     }
 }
 
+#[cfg(feature = "migration")]
 #[async_trait]
 impl DataStore for SurrealDataStore {
     async fn store_node(&self, node: Node) -> NodeSpaceResult<NodeId> {
@@ -303,6 +314,7 @@ impl DataStore for SurrealDataStore {
     }
 }
 
+#[cfg(feature = "migration")]
 impl SurrealDataStore {
     /// Get a text node specifically from the text table
     pub async fn get_text_node(&self, node_id: &NodeId) -> NodeSpaceResult<Option<Node>> {
