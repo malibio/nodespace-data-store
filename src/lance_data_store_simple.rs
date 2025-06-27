@@ -1,5 +1,5 @@
 use crate::error::DataStoreError;
-use crate::{DataStore, HybridSearchConfig, ImageNode, NodeType, RelevanceFactors, SearchResult};
+use crate::data_store::{DataStore, HybridSearchConfig, ImageNode, NodeType, RelevanceFactors, SearchResult, ImageMetadata};
 use arrow_array::builder::{ListBuilder, StringBuilder};
 use arrow_array::{Array, ListArray, RecordBatch, RecordBatchIterator, StringArray};
 use arrow_schema::{DataType, Field, Schema};
@@ -17,7 +17,7 @@ pub struct LanceDataStore {
     connection: Connection,
     table: Arc<RwLock<Option<Table>>>,
     table_name: String,
-    db_path: String,
+    _db_path: String,
     vector_dimension: usize,
 }
 
@@ -58,7 +58,7 @@ impl LanceDataStore {
             connection,
             table: Arc::new(RwLock::new(None)),
             table_name: "universal_nodes".to_string(),
-            db_path: db_path.to_string(),
+            _db_path: db_path.to_string(),
             vector_dimension,
         };
 
@@ -979,7 +979,7 @@ impl DataStore for LanceDataStore {
                         id: node.id.to_string(),
                         image_data,
                         embedding,
-                        metadata: crate::ImageMetadata {
+                        metadata: ImageMetadata {
                             filename: metadata
                                 .get("filename")
                                 .and_then(|v| v.as_str())

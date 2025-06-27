@@ -8,11 +8,13 @@ use std::sync::Arc;
 /// Universal NodeSpace document schema for LanceDB
 /// This schema supports infinite entity extensibility without schema changes,
 /// including multimodal support for text and image content
+#[allow(dead_code)]
 pub struct UniversalSchema;
 
 impl UniversalSchema {
     /// Get the Arrow schema for the universal NodeSpace document format
     /// Supports both text and image nodes with unified vector storage
+    #[allow(dead_code)]
     pub fn get_arrow_schema() -> Arc<Schema> {
         let fields = vec![
             // Core identification
@@ -69,6 +71,7 @@ impl UniversalSchema {
     }
 
     /// Get schema for text-only nodes (backwards compatibility)
+    #[allow(dead_code)]
     pub fn get_text_schema() -> Arc<Schema> {
         let fields = vec![
             Field::new("id", DataType::Utf8, false),
