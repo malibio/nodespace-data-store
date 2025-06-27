@@ -1,8 +1,8 @@
 //! Load Sample Data from NodeSpace Documentation
 //! Sarah Chen Marketing Professional - June 2025 Journal Entries
 
-use nodespace_data_store::{LanceDataStore, DataStore};
 use nodespace_core_types::{Node, NodeId};
+use nodespace_data_store::{DataStore, LanceDataStore};
 use std::error::Error;
 
 #[tokio::main]
@@ -52,9 +52,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     }));
 
     // Store nodes with embeddings
+    use rand::{Rng, SeedableRng};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use rand::{SeedableRng, Rng};
 
     fn create_embedding(text: &str) -> Vec<f32> {
         let mut hasher = DefaultHasher::new();
@@ -64,20 +64,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
         (0..384).map(|_| rng.gen_range(-1.0..1.0)).collect()
     }
 
-    let q3_id = data_store.store_node_with_embedding(
-        q3_strategy,
-        create_embedding("q3 campaign strategy leadership meeting action items")
-    ).await?;
+    let q3_id = data_store
+        .store_node_with_embedding(
+            q3_strategy,
+            create_embedding("q3 campaign strategy leadership meeting action items"),
+        )
+        .await?;
 
-    let client_id = data_store.store_node_with_embedding(
-        client_notes,
-        create_embedding("client checkin acme corp techstart global solutions revenue")
-    ).await?;
+    let client_id = data_store
+        .store_node_with_embedding(
+            client_notes,
+            create_embedding("client checkin acme corp techstart global solutions revenue"),
+        )
+        .await?;
 
-    let conf_id = data_store.store_node_with_embedding(
-        conference_insights,
-        create_embedding("marketingtech conference ai personalization connected tv voice search")
-    ).await?;
+    let conf_id = data_store
+        .store_node_with_embedding(
+            conference_insights,
+            create_embedding(
+                "marketingtech conference ai personalization connected tv voice search",
+            ),
+        )
+        .await?;
 
     println!("✅ Created nodes:");
     println!("   📝 Q3 Strategy Review: {}", q3_id);
@@ -86,22 +94,35 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Test retrieval
     println!("\n🔍 Testing Sample Data Retrieval...");
-    
-    if let Some(retrieved_node) = data_store.get_node(&NodeId::from_string(q3_id)).await? {
-        let preview = retrieved_node.content.as_str()
-            .map(|s| if s.len() > 100 { format!("{}...", &s[..97]) } else { s.to_string() })
+
+    if let Some(retrieved_node) = data_store.get_node(&q3_id).await? {
+        let preview = retrieved_node
+            .content
+            .as_str()
+            .map(|s| {
+                if s.len() > 100 {
+                    format!("{}...", &s[..97])
+                } else {
+                    s.to_string()
+                }
+            })
             .unwrap_or("NULL".to_string());
         println!("   ✅ Retrieved Q3 Strategy: {}", preview);
     }
 
     // Test search functionality
     use nodespace_data_store::NodeType;
-    let search_results = data_store.search_multimodal(
-        create_embedding("marketing conference insights"),
-        vec![NodeType::Text]
-    ).await?;
-    
-    println!("   📊 Search for 'marketing conference': {} results", search_results.len());
+    let search_results = data_store
+        .search_multimodal(
+            create_embedding("marketing conference insights"),
+            vec![NodeType::Text],
+        )
+        .await?;
+
+    println!(
+        "   📊 Search for 'marketing conference': {} results",
+        search_results.len()
+    );
 
     println!("\n🎉 Sample Data Loading Complete!");
     println!("📈 Dataset includes:");

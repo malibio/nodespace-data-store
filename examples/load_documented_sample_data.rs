@@ -1,12 +1,12 @@
 //! Load Sample Data from NodeSpace System Design Documentation
-//! 
+//!
 //! This creates the established sample dataset from the system-design docs:
 //! - Sarah Chen marketing professional persona data
 //! - June 2025 journal entries with hierarchical structure
 //! - Cross-modal examples for testing
 
-use nodespace_data_store::{LanceDataStore, DataStore, ImageNode, ImageMetadata};
 use nodespace_core_types::{Node, NodeId};
+use nodespace_data_store::{DataStore, ImageMetadata, ImageNode, LanceDataStore};
 use std::error::Error;
 use uuid::Uuid;
 
@@ -18,17 +18,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("✅ LanceDB initialized");
 
     // SARAH CHEN MARKETING PROFESSIONAL - JUNE 2025 JOURNAL DATA
-    
+
     // June 23, 2025 (Today) - Q3 Campaign Strategy Review
     let june_23_date = create_date_node(
         "2025-06-23",
-        "Monday, June 23 - Q3 Planning & Client Check-ins"
-    ).await?;
-    let date_id_23 = data_store.store_node_with_embedding(
-        june_23_date,
-        create_text_embedding("monday june 23 q3 planning client checkins")
-    ).await?;
-    
+        "Monday, June 23 - Q3 Planning & Client Check-ins",
+    )
+    .await?;
+    let date_id_23 = data_store
+        .store_node_with_embedding(
+            june_23_date,
+            create_text_embedding("monday june 23 q3 planning client checkins"),
+        )
+        .await?;
+
     let q3_strategy = create_text_node(
         "Q3 Campaign Strategy Review - Leadership Meeting",
         "Comprehensive review of Q3 campaign strategies with leadership team. Key focus areas: digital transformation messaging, enterprise client acquisition, and competitive positioning against industry leaders.\n\nAction items:\n• Schedule creative brief session with design team for new visual identity\n• Update campaign timeline in Airtable with revised milestones\n• Review competitor analysis from last quarter for positioning gaps\n• Coordinate with sales team on enterprise lead qualification process",
@@ -55,20 +58,27 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "follow_up_required": true
         }))
     ).await?;
-    data_store.store_node_with_embedding(
-        client_checkins,
-        create_text_embedding("client checkin notes acme corp techstart global solutions revenue contracts")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            client_checkins,
+            create_text_embedding(
+                "client checkin notes acme corp techstart global solutions revenue contracts",
+            ),
+        )
+        .await?;
 
     // June 22, 2025 (Yesterday) - Weekend Planning
     let june_22_date = create_date_node(
         "2025-06-22",
-        "Sunday, June 22 - Weekend Campaign Ideas & Industry Research"
-    ).await?;
-    let date_id_22 = data_store.store_node_with_embedding(
-        june_22_date,
-        create_text_embedding("sunday june 22 weekend campaign ideas industry research")
-    ).await?;
+        "Sunday, June 22 - Weekend Campaign Ideas & Industry Research",
+    )
+    .await?;
+    let date_id_22 = data_store
+        .store_node_with_embedding(
+            june_22_date,
+            create_text_embedding("sunday june 22 weekend campaign ideas industry research"),
+        )
+        .await?;
 
     let weekend_ideas = create_text_node(
         "Weekend Campaign Ideas - Video Content Strategy",
@@ -88,12 +98,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // June 21, 2025 - Marketing Weekly Review
     let june_21_date = create_date_node(
         "2025-06-21",
-        "Friday, June 21 - Marketing Weekly Review & Metrics Analysis"
-    ).await?;
-    let date_id_21 = data_store.store_node_with_embedding(
-        june_21_date,
-        create_text_embedding("friday june 21 marketing weekly review metrics analysis")
-    ).await?;
+        "Friday, June 21 - Marketing Weekly Review & Metrics Analysis",
+    )
+    .await?;
+    let date_id_21 = data_store
+        .store_node_with_embedding(
+            june_21_date,
+            create_text_embedding("friday june 21 marketing weekly review metrics analysis"),
+        )
+        .await?;
 
     let weekly_review = create_text_node(
         "Marketing Weekly Review - Performance Metrics & Priorities",
@@ -118,12 +131,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // June 15, 2025 - Conference Learnings
     let june_15_date = create_date_node(
         "2025-06-15",
-        "Saturday, June 15 - MarketingTech 2025 Conference Insights"
-    ).await?;
-    let date_id_15 = data_store.store_node_with_embedding(
-        june_15_date,
-        create_text_embedding("saturday june 15 marketingtech conference insights")
-    ).await?;
+        "Saturday, June 15 - MarketingTech 2025 Conference Insights",
+    )
+    .await?;
+    let date_id_15 = data_store
+        .store_node_with_embedding(
+            june_15_date,
+            create_text_embedding("saturday june 15 marketingtech conference insights"),
+        )
+        .await?;
 
     let conference_learnings = create_text_node(
         "Conference Learnings - MarketingTech 2025 Key Insights",
@@ -147,7 +163,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let conference_photo = ImageNode {
         id: Uuid::new_v4().to_string(),
         image_data: create_mock_image_data("marketingtech_conference_2025.jpg"),
-        embedding: create_image_embedding("marketing conference presentation slides audience professional event"),
+        embedding: create_image_embedding(
+            "marketing conference presentation slides audience professional event",
+        ),
         metadata: ImageMetadata {
             filename: "marketingtech_conference_2025.jpg".to_string(),
             mime_type: "image/jpeg".to_string(),
@@ -159,9 +177,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 "location": "San Francisco Conference Center",
                 "event": "MarketingTech 2025"
             })),
-            description: Some("MarketingTech 2025 keynote presentation on AI-driven personalization trends".to_string()),
+            description: Some(
+                "MarketingTech 2025 keynote presentation on AI-driven personalization trends"
+                    .to_string(),
+            ),
         },
-        created_at: chrono::DateTime::parse_from_rfc3339("2025-06-15T14:30:00Z")?.with_timezone(&chrono::Utc),
+        created_at: chrono::DateTime::parse_from_rfc3339("2025-06-15T14:30:00Z")?
+            .with_timezone(&chrono::Utc),
     };
 
     let conference_image_id = data_store.create_image_node(conference_photo).await?;
@@ -170,7 +192,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let client_meeting_photo = ImageNode {
         id: Uuid::new_v4().to_string(),
         image_data: create_mock_image_data("acme_corp_meeting_june.jpg"),
-        embedding: create_image_embedding("business meeting conference room presentation charts professional discussion"),
+        embedding: create_image_embedding(
+            "business meeting conference room presentation charts professional discussion",
+        ),
         metadata: ImageMetadata {
             filename: "acme_corp_meeting_june.jpg".to_string(),
             mime_type: "image/jpeg".to_string(),
@@ -182,9 +206,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 "location": "Acme Corp Headquarters",
                 "participants": ["Sarah Chen", "Acme Corp Team"]
             })),
-            description: Some("Q4 expansion discussion meeting with Acme Corp enterprise team".to_string()),
+            description: Some(
+                "Q4 expansion discussion meeting with Acme Corp enterprise team".to_string(),
+            ),
         },
-        created_at: chrono::DateTime::parse_from_rfc3339("2025-06-23T10:15:00Z")?.with_timezone(&chrono::Utc),
+        created_at: chrono::DateTime::parse_from_rfc3339("2025-06-23T10:15:00Z")?
+            .with_timezone(&chrono::Utc),
     };
 
     let meeting_image_id = data_store.create_image_node(client_meeting_photo).await?;
@@ -192,33 +219,44 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Verification
     println!("\n🔍 Verifying Sample Data...");
-    
-    let june_23_nodes = data_store.get_child_nodes(&NodeId::from_string(date_id_23)).await?;
+
+    let june_23_nodes = data_store.get_child_nodes(&date_id_23).await?;
     println!("   📅 June 23, 2025: {} child nodes", june_23_nodes.len());
-    
-    let june_22_nodes = data_store.get_child_nodes(&NodeId::from_string(date_id_22)).await?;
+
+    let june_22_nodes = data_store.get_child_nodes(&date_id_22).await?;
     println!("   📅 June 22, 2025: {} child nodes", june_22_nodes.len());
-    
-    let june_21_nodes = data_store.get_child_nodes(&NodeId::from_string(date_id_21)).await?;
+
+    let june_21_nodes = data_store.get_child_nodes(&date_id_21).await?;
     println!("   📅 June 21, 2025: {} child nodes", june_21_nodes.len());
-    
-    let june_15_nodes = data_store.get_child_nodes(&NodeId::from_string(date_id_15)).await?;
+
+    let june_15_nodes = data_store.get_child_nodes(&date_id_15).await?;
     println!("   📅 June 15, 2025: {} child nodes", june_15_nodes.len());
 
     // Test cross-modal search with documented content
     println!("\n🔍 Testing Cross-Modal Search with Documented Data...");
-    
+
     use nodespace_data_store::NodeType;
-    let conference_query = create_text_embedding("marketing conference insights ai personalization");
-    let conference_results = data_store.search_multimodal(
-        conference_query,
-        vec![NodeType::Text, NodeType::Image]
-    ).await?;
-    
-    println!("   📊 'marketing conference insights' search: {} results", conference_results.len());
+    let conference_query =
+        create_text_embedding("marketing conference insights ai personalization");
+    let conference_results = data_store
+        .search_multimodal(conference_query, vec![NodeType::Text, NodeType::Image])
+        .await?;
+
+    println!(
+        "   📊 'marketing conference insights' search: {} results",
+        conference_results.len()
+    );
     for (i, node) in conference_results.iter().take(3).enumerate() {
-        let preview = node.content.as_str()
-            .map(|s| if s.len() > 80 { format!("{}...", &s[..77]) } else { s.to_string() })
+        let preview = node
+            .content
+            .as_str()
+            .map(|s| {
+                if s.len() > 80 {
+                    format!("{}...", &s[..77])
+                } else {
+                    s.to_string()
+                }
+            })
             .unwrap_or("Image Node".to_string());
         println!("   {}. {} - {}", i + 1, node.id, preview);
     }
@@ -232,7 +270,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("   🏢 Enterprise clients: Acme Corp, TechStart Inc, Global Solutions");
     println!("   📊 Marketing metrics, campaign data, conference insights");
     println!("   🔗 Established parent-child relationships for date organization");
-    
+
     println!("\n📋 Ready for Testing:");
     println!("   • Cross-modal search: 'marketing conference insights'");
     println!("   • Client search: 'Acme Corp expansion Q4'");
@@ -245,8 +283,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 async fn create_date_node(date: &str, description: &str) -> Result<Node, Box<dyn Error>> {
     let node = Node::with_id(
         NodeId::from_string(date.to_string()),
-        serde_json::Value::String(description.to_string())
-    ).with_metadata(serde_json::json!({
+        serde_json::Value::String(description.to_string()),
+    )
+    .with_metadata(serde_json::json!({
         "node_type": "date",
         "date": date,
         "content_type": "date_container"
@@ -255,71 +294,74 @@ async fn create_date_node(date: &str, description: &str) -> Result<Node, Box<dyn
 }
 
 async fn create_text_node(
-    title: &str, 
-    content: &str, 
+    title: &str,
+    content: &str,
     date: Option<&str>,
-    metadata: Option<serde_json::Value>
+    metadata: Option<serde_json::Value>,
 ) -> Result<Node, Box<dyn Error>> {
     let mut base_metadata = serde_json::json!({
         "node_type": "text",
         "title": title,
         "content_length": content.len()
     });
-    
+
     if let Some(date_str) = date {
         base_metadata["parent_date"] = serde_json::Value::String(date_str.to_string());
     }
-    
+
     if let Some(additional_metadata) = metadata {
-        if let (Some(base_obj), Some(add_obj)) = (base_metadata.as_object_mut(), additional_metadata.as_object()) {
+        if let (Some(base_obj), Some(add_obj)) = (
+            base_metadata.as_object_mut(),
+            additional_metadata.as_object(),
+        ) {
             for (key, value) in add_obj {
                 base_obj.insert(key.clone(), value.clone());
             }
         }
     }
-    
-    let node = Node::new(serde_json::Value::String(content.to_string()))
-        .with_metadata(base_metadata);
+
+    let node =
+        Node::new(serde_json::Value::String(content.to_string())).with_metadata(base_metadata);
     Ok(node)
 }
 
 fn create_text_embedding(text: &str) -> Vec<f32> {
+    use rand::{Rng, SeedableRng};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use rand::{SeedableRng, Rng};
-    
+
     let mut hasher = DefaultHasher::new();
     text.hash(&mut hasher);
     let seed = hasher.finish();
-    
+
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-    (0..384).map(|_| rng.gen_range(-1.0..1.0)).collect()
+    (0..384).map(|_| rng.gen_range(-1.0..1.0)).collect() // Using default 384 dimension
 }
 
 fn create_image_embedding(description: &str) -> Vec<f32> {
+    use rand::{Rng, SeedableRng};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use rand::{SeedableRng, Rng};
-    
+
     let mut hasher = DefaultHasher::new();
     description.hash(&mut hasher);
     let seed = hasher.finish();
-    
+
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-    (0..512).map(|_| rng.gen_range(-1.0..1.0)).collect()
+    (0..512).map(|_| rng.gen_range(-1.0..1.0)).collect() // Image embeddings: 512 dimensions
 }
 
 fn create_mock_image_data(filename: &str) -> Vec<u8> {
+    use rand::{Rng, SeedableRng};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use rand::{SeedableRng, Rng};
-    
+
     let mut hasher = DefaultHasher::new();
     filename.hash(&mut hasher);
     let seed = hasher.finish();
-    
+
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
-    
+
     // Mock JPEG header + random data
     let mut data = vec![0xFF, 0xD8, 0xFF, 0xE0]; // JPEG header
     data.extend((0..2000).map(|_| rng.gen::<u8>()));
