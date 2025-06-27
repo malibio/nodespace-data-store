@@ -25,7 +25,7 @@ impl UniversalSchema {
                 DataType::List(Arc::new(Field::new("item", DataType::Float32, false))),
                 true,
             ),
-            // Structural relationships (simplified from SurrealDB graph model)
+            // Structural relationships for hierarchical data organization
             Field::new("parent_id", DataType::Utf8, true),
             Field::new("next_sibling", DataType::Utf8, true),
             Field::new("previous_sibling", DataType::Utf8, true),

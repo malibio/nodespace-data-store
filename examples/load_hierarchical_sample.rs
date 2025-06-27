@@ -1,10 +1,10 @@
 //! Load Hierarchical Sample Data from sample-node-entry.md
-//! 
+//!
 //! Creates a DateNode for today with "Product Launch Campaign Strategy" as child,
 //! then builds the hierarchical structure based on markdown hyphen depth levels.
 
-use nodespace_data_store::{LanceDataStore, DataStore};
 use nodespace_core_types::{Node, NodeId};
+use nodespace_data_store::{DataStore, LanceDataStore};
 use std::error::Error;
 use uuid::Uuid;
 
@@ -19,17 +19,17 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
     let date_node = Node::with_id(
         NodeId::from_string(today.clone()),
-        serde_json::Value::String(format!("📅 {} - Product Launch Planning", today))
-    ).with_metadata(serde_json::json!({
+        serde_json::Value::String(format!("📅 {} - Product Launch Planning", today)),
+    )
+    .with_metadata(serde_json::json!({
         "node_type": "date",
         "date": today,
         "content_type": "date_container"
     }));
 
-    let date_id = data_store.store_node_with_embedding(
-        date_node,
-        create_embedding("date product launch planning")
-    ).await?;
+    let date_id = data_store
+        .store_node_with_embedding(date_node, create_embedding("date product launch planning"))
+        .await?;
     println!("✅ Created DateNode: {}", date_id);
 
     // Create the main campaign strategy node as child of DateNode
@@ -45,10 +45,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
         "content_type": "strategy_document"
     }));
 
-    let strategy_id = data_store.store_node_with_embedding(
-        campaign_strategy,
-        create_embedding("product launch campaign strategy comprehensive plan")
-    ).await?;
+    let strategy_id = data_store
+        .store_node_with_embedding(
+            campaign_strategy,
+            create_embedding("product launch campaign strategy comprehensive plan"),
+        )
+        .await?;
     println!("✅ Created main strategy node: {}", strategy_id);
 
     // Level 2: Main sections (## headers)
@@ -57,9 +59,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
         ("Executive Summary", create_executive_summary_content()),
         ("Target Audience Analysis", create_target_audience_content()),
         ("Product Positioning Strategy", create_positioning_content()),
-        ("Marketing Channel Strategy", create_channel_strategy_content()),
+        (
+            "Marketing Channel Strategy",
+            create_channel_strategy_content(),
+        ),
         ("Success Metrics and KPIs", create_metrics_content()),
-        ("Budget Allocation and Resource Planning", create_budget_content()),
+        (
+            "Budget Allocation and Resource Planning",
+            create_budget_content(),
+        ),
     ];
 
     let mut section_ids = Vec::new();
@@ -67,8 +75,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id.clone()),
-            serde_json::Value::String(format!("## {}\n\n{}", title, content))
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(format!("## {}\n\n{}", title, content)),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": strategy_id,
@@ -76,24 +85,30 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "section_type": "main_section"
         }));
 
-        let stored_id = data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
-        
+        let stored_id = data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
+
         section_ids.push((title.to_string(), stored_id));
         println!("   📄 Created section: {}", title);
     }
 
     // Level 3: Subsections for Target Audience Analysis (### headers)
-    let target_audience_id = section_ids.iter()
+    let target_audience_id = section_ids
+        .iter()
         .find(|(title, _)| title == "Target Audience Analysis")
         .map(|(_, id)| id.clone())
         .unwrap();
 
     let subsections = vec![
         ("Primary Target Segment", create_primary_target_content()),
-        ("Secondary Target Segments", create_secondary_target_content()),
+        (
+            "Secondary Target Segments",
+            create_secondary_target_content(),
+        ),
     ];
 
     let mut subsection_ids = Vec::new();
@@ -101,8 +116,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let subsection_id = Uuid::new_v4().to_string();
         let subsection_node = Node::with_id(
             NodeId::from_string(subsection_id.clone()),
-            serde_json::Value::String(format!("### {}\n\n{}", title, content))
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(format!("### {}\n\n{}", title, content)),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": target_audience_id,
@@ -110,17 +126,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "section_type": "subsection"
         }));
 
-        let stored_id = data_store.store_node_with_embedding(
-            subsection_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
-        
+        let stored_id = data_store
+            .store_node_with_embedding(
+                subsection_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
+
         subsection_ids.push((title.to_string(), stored_id));
         println!("      📋 Created subsection: {}", title);
     }
 
     // Level 4: Detailed breakdowns under Primary Target Segment
-    let primary_target_id = subsection_ids.iter()
+    let primary_target_id = subsection_ids
+        .iter()
         .find(|(title, _)| title == "Primary Target Segment")
         .map(|(_, id)| id.clone())
         .unwrap();
@@ -134,8 +153,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let detail_id = Uuid::new_v4().to_string();
         let detail_node = Node::with_id(
             NodeId::from_string(detail_id.clone()),
-            serde_json::Value::String(format!("**{}**:\n{}", title, content))
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(format!("**{}**:\n{}", title, content)),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": primary_target_id,
@@ -143,38 +163,54 @@ async fn main() -> Result<(), Box<dyn Error>> {
             "section_type": "detail"
         }));
 
-        let stored_id = data_store.store_node_with_embedding(
-            detail_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
-        
+        let stored_id = data_store
+            .store_node_with_embedding(
+                detail_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
+
         println!("         🎯 Created detail: {}", title);
     }
 
     // Test hierarchical retrieval
     println!("\n🔍 Testing Hierarchical Data Retrieval...");
-    
+
     // Get the main strategy node
     if let Some(retrieved_strategy) = data_store.get_node(&strategy_id).await? {
-        let preview = retrieved_strategy.content.as_str()
-            .map(|s| if s.len() > 100 { format!("{}...", &s[..97]) } else { s.to_string() })
+        let preview = retrieved_strategy
+            .content
+            .as_str()
+            .map(|s| {
+                if s.len() > 100 {
+                    format!("{}...", &s[..97])
+                } else {
+                    s.to_string()
+                }
+            })
             .unwrap_or("NULL".to_string());
         println!("   ✅ Retrieved strategy: {}", preview);
     }
 
     // Test search across hierarchy
     use nodespace_data_store::NodeType;
-    let search_results = data_store.search_multimodal(
-        create_embedding("target audience professional demographics"),
-        vec![NodeType::Text]
-    ).await?;
-    
-    println!("   📊 Search for 'target audience': {} results", search_results.len());
+    let search_results = data_store
+        .search_multimodal(
+            create_embedding("target audience professional demographics"),
+            vec![NodeType::Text],
+        )
+        .await?;
+
+    println!(
+        "   📊 Search for 'target audience': {} results",
+        search_results.len()
+    );
     for (i, node) in search_results.iter().take(3).enumerate() {
         if let Some(metadata) = &node.metadata {
             if let Some(title) = metadata.get("title").and_then(|v| v.as_str()) {
-                println!("   {}. {} (depth: {})", 
-                    i + 1, 
+                println!(
+                    "   {}. {} (depth: {})",
+                    i + 1,
                     title,
                     metadata.get("depth").and_then(|v| v.as_u64()).unwrap_or(0)
                 );
@@ -190,7 +226,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("   📋 2 Subsections under Target Audience (depth 3)");
     println!("   🎯 2 Detail sections under Primary Target (depth 4)");
     println!("   🔗 Full parent-child hierarchical relationships");
-    
+
     println!("\n📋 Ready for Testing:");
     println!("   • Hierarchical navigation through campaign strategy");
     println!("   • Search across different depth levels");
@@ -207,7 +243,8 @@ fn create_launch_overview_content() -> String {
 - **Launch Date**: July 15, 2025
 - **Campaign Duration**: 12 weeks (4 weeks pre-launch, 4 weeks launch, 4 weeks post-launch)
 - **Total Budget**: $180,000
-- **Primary Objective**: Establish market leadership in sustainable professional products".to_string()
+- **Primary Objective**: Establish market leadership in sustainable professional products"
+        .to_string()
 }
 
 fn create_executive_summary_content() -> String {
@@ -230,7 +267,8 @@ fn create_secondary_target_content() -> String {
 - **Segment 3: Early Adopter Enthusiasts**
   - Technology and innovation enthusiasts
   - Sustainability advocates and influencers
-  - Professional reviewers and industry experts".to_string()
+  - Professional reviewers and industry experts"
+        .to_string()
 }
 
 fn create_demographics_content() -> String {
@@ -238,7 +276,8 @@ fn create_demographics_content() -> String {
 - Income: $75,000-$150,000 annually
 - Education: College degree or higher (87%)
 - Location: Urban and suburban professionals in major metropolitan areas
-- Industry Focus: Design, consulting, technology, finance, healthcare".to_string()
+- Industry Focus: Design, consulting, technology, finance, healthcare"
+        .to_string()
 }
 
 fn create_psychographic_content() -> String {
@@ -246,7 +285,8 @@ fn create_psychographic_content() -> String {
 - Willing to pay premium for quality and environmental benefits
 - Influences others in professional networks
 - Active on LinkedIn and Instagram
-- Research-intensive purchase behavior".to_string()
+- Research-intensive purchase behavior"
+        .to_string()
 }
 
 fn create_positioning_content() -> String {
@@ -304,18 +344,19 @@ fn create_budget_content() -> String {
 **Team Resource Allocation**:
 - Campaign Management: 40% of marketing team capacity for 12 weeks
 - Performance Marketing: Full-time focus from digital specialists
-- Analytics and Optimization: Daily monitoring and weekly optimization cycles".to_string()
+- Analytics and Optimization: Daily monitoring and weekly optimization cycles"
+        .to_string()
 }
 
 fn create_embedding(text: &str) -> Vec<f32> {
+    use rand::{Rng, SeedableRng};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use rand::{SeedableRng, Rng};
-    
+
     let mut hasher = DefaultHasher::new();
     text.hash(&mut hasher);
     let seed = hasher.finish();
-    
+
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
     (0..384).map(|_| rng.gen_range(-1.0..1.0)).collect()
 }

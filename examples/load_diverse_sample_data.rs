@@ -1,10 +1,10 @@
 //! Load Diverse Sample Data - Multiple Business Documents
-//! 
+//!
 //! Creates various business documents across different dates with hierarchical structure,
 //! markdown formatting, and emojis for realistic testing scenarios.
 
-use nodespace_data_store::{LanceDataStore, DataStore};
 use nodespace_core_types::{Node, NodeId};
+use nodespace_data_store::{DataStore, LanceDataStore};
 use std::error::Error;
 use uuid::Uuid;
 
@@ -17,47 +17,56 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // TODAY (2025-06-27) - Multiple documents on same date
     let today = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    
+
     // Create today's DateNode
     let today_node = Node::with_id(
         NodeId::from_string(today.clone()),
-        serde_json::Value::String(format!("📅 {} - Strategic Planning & Policy Updates", today))
-    ).with_metadata(serde_json::json!({
+        serde_json::Value::String(format!(
+            "📅 {} - Strategic Planning & Policy Updates",
+            today
+        )),
+    )
+    .with_metadata(serde_json::json!({
         "node_type": "date",
         "date": today,
         "content_type": "date_container"
     }));
 
-    let today_id = data_store.store_node_with_embedding(
-        today_node,
-        create_embedding("strategic planning policy updates")
-    ).await?;
+    let today_id = data_store
+        .store_node_with_embedding(
+            today_node,
+            create_embedding("strategic planning policy updates"),
+        )
+        .await?;
     println!("✅ Created DateNode: {}", today);
 
     // 🏢 HR Policy Update (same date as Product Launch)
     create_hr_policy_document(&data_store, &today).await?;
-    
+
     // 👥 Weekly Team Standup (same date)
     create_team_standup_document(&data_store, &today).await?;
 
-    // 💰 Q3 Budget Review (same date) 
+    // 💰 Q3 Budget Review (same date)
     create_budget_review_document(&data_store, &today).await?;
 
     // YESTERDAY (2025-06-26) - Client meetings
     let yesterday = "2025-06-26";
     let yesterday_node = Node::with_id(
         NodeId::from_string(yesterday.to_string()),
-        serde_json::Value::String("📅 2025-06-26 - Client Engagement & Partnerships".to_string())
-    ).with_metadata(serde_json::json!({
+        serde_json::Value::String("📅 2025-06-26 - Client Engagement & Partnerships".to_string()),
+    )
+    .with_metadata(serde_json::json!({
         "node_type": "date",
         "date": yesterday,
         "content_type": "date_container"
     }));
 
-    data_store.store_node_with_embedding(
-        yesterday_node,
-        create_embedding("client engagement partnerships")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            yesterday_node,
+            create_embedding("client engagement partnerships"),
+        )
+        .await?;
     println!("✅ Created DateNode: {}", yesterday);
 
     // 🤝 Client Partnership Meeting
@@ -67,17 +76,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let tomorrow = "2025-06-28";
     let tomorrow_node = Node::with_id(
         NodeId::from_string(tomorrow.to_string()),
-        serde_json::Value::String("📅 2025-06-28 - Project Reviews & Team Development".to_string())
-    ).with_metadata(serde_json::json!({
+        serde_json::Value::String("📅 2025-06-28 - Project Reviews & Team Development".to_string()),
+    )
+    .with_metadata(serde_json::json!({
         "node_type": "date",
         "date": tomorrow,
         "content_type": "date_container"
     }));
 
-    data_store.store_node_with_embedding(
-        tomorrow_node,
-        create_embedding("project reviews team development")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            tomorrow_node,
+            create_embedding("project reviews team development"),
+        )
+        .await?;
     println!("✅ Created DateNode: {}", tomorrow);
 
     // 🔄 Project Retrospective
@@ -87,17 +99,20 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let next_week = "2025-07-01";
     let next_week_node = Node::with_id(
         NodeId::from_string(next_week.to_string()),
-        serde_json::Value::String("📅 2025-07-01 - Quarterly Planning & Goal Setting".to_string())
-    ).with_metadata(serde_json::json!({
+        serde_json::Value::String("📅 2025-07-01 - Quarterly Planning & Goal Setting".to_string()),
+    )
+    .with_metadata(serde_json::json!({
         "node_type": "date",
         "date": next_week,
         "content_type": "date_container"
     }));
 
-    data_store.store_node_with_embedding(
-        next_week_node,
-        create_embedding("quarterly planning goal setting")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            next_week_node,
+            create_embedding("quarterly planning goal setting"),
+        )
+        .await?;
     println!("✅ Created DateNode: {}", next_week);
 
     // 🎯 Quarterly Planning Session
@@ -105,29 +120,38 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     // Test diverse search scenarios
     println!("\n🔍 Testing Diverse Search Scenarios...");
-    
+
     use nodespace_data_store::NodeType;
-    
+
     // Search for HR-related content
-    let hr_results = data_store.search_multimodal(
-        create_embedding("remote work policy guidelines"),
-        vec![NodeType::Text]
-    ).await?;
+    let hr_results = data_store
+        .search_multimodal(
+            create_embedding("remote work policy guidelines"),
+            vec![NodeType::Text],
+        )
+        .await?;
     println!("   🏢 HR/Policy search: {} results", hr_results.len());
 
     // Search for team/meeting content
-    let team_results = data_store.search_multimodal(
-        create_embedding("team standup sprint planning"),
-        vec![NodeType::Text]
-    ).await?;
+    let team_results = data_store
+        .search_multimodal(
+            create_embedding("team standup sprint planning"),
+            vec![NodeType::Text],
+        )
+        .await?;
     println!("   👥 Team/Meeting search: {} results", team_results.len());
 
     // Search for financial content
-    let budget_results = data_store.search_multimodal(
-        create_embedding("budget revenue expenses quarterly"),
-        vec![NodeType::Text]
-    ).await?;
-    println!("   💰 Budget/Financial search: {} results", budget_results.len());
+    let budget_results = data_store
+        .search_multimodal(
+            create_embedding("budget revenue expenses quarterly"),
+            vec![NodeType::Text],
+        )
+        .await?;
+    println!(
+        "   💰 Budget/Financial search: {} results",
+        budget_results.len()
+    );
 
     println!("\n🎉 Diverse Sample Data Loaded Successfully!");
     println!("📈 Dataset Summary:");
@@ -144,7 +168,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn create_hr_policy_document(data_store: &LanceDataStore, date: &str) -> Result<(), Box<dyn Error>> {
+async fn create_hr_policy_document(
+    data_store: &LanceDataStore,
+    date: &str,
+) -> Result<(), Box<dyn Error>> {
     let doc_id = Uuid::new_v4().to_string();
     let main_doc = Node::with_id(
         NodeId::from_string(doc_id.clone()),
@@ -159,10 +186,12 @@ async fn create_hr_policy_document(data_store: &LanceDataStore, date: &str) -> R
         "document_type": "hr_policy"
     }));
 
-    data_store.store_node_with_embedding(
-        main_doc,
-        create_embedding("remote work policy hybrid collaboration guidelines")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            main_doc,
+            create_embedding("remote work policy hybrid collaboration guidelines"),
+        )
+        .await?;
 
     // Policy sections
     let sections = vec![
@@ -177,8 +206,9 @@ async fn create_hr_policy_document(data_store: &LanceDataStore, date: &str) -> R
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id),
-            serde_json::Value::String(content.to_string())
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(content.to_string()),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": doc_id,
@@ -186,17 +216,22 @@ async fn create_hr_policy_document(data_store: &LanceDataStore, date: &str) -> R
             "section_type": "policy_section"
         }));
 
-        data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
+        data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
     }
 
     println!("   🏢 Created HR Policy Update with 3 sections");
     Ok(())
 }
 
-async fn create_team_standup_document(data_store: &LanceDataStore, date: &str) -> Result<(), Box<dyn Error>> {
+async fn create_team_standup_document(
+    data_store: &LanceDataStore,
+    date: &str,
+) -> Result<(), Box<dyn Error>> {
     let doc_id = Uuid::new_v4().to_string();
     let main_doc = Node::with_id(
         NodeId::from_string(doc_id.clone()),
@@ -211,10 +246,12 @@ async fn create_team_standup_document(data_store: &LanceDataStore, date: &str) -
         "document_type": "meeting_notes"
     }));
 
-    data_store.store_node_with_embedding(
-        main_doc,
-        create_embedding("team standup sprint progress velocity")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            main_doc,
+            create_embedding("team standup sprint progress velocity"),
+        )
+        .await?;
 
     let sections = vec![
         ("Sprint Progress", "## 📊 Sprint Progress\n\n✅ **Completed This Week**:\n- User authentication refactor (Sarah) 🔐\n- API rate limiting implementation (Mike) ⚡\n- Mobile responsive fixes (Jessica) 📱\n\n🔄 **In Progress**:\n- Payment gateway integration (David) 💳\n- Search functionality optimization (Lisa) 🔍"),
@@ -228,8 +265,9 @@ async fn create_team_standup_document(data_store: &LanceDataStore, date: &str) -
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id),
-            serde_json::Value::String(content.to_string())
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(content.to_string()),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": doc_id,
@@ -237,17 +275,22 @@ async fn create_team_standup_document(data_store: &LanceDataStore, date: &str) -
             "section_type": "meeting_section"
         }));
 
-        data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
+        data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
     }
 
     println!("   👥 Created Team Standup with 3 sections");
     Ok(())
 }
 
-async fn create_budget_review_document(data_store: &LanceDataStore, date: &str) -> Result<(), Box<dyn Error>> {
+async fn create_budget_review_document(
+    data_store: &LanceDataStore,
+    date: &str,
+) -> Result<(), Box<dyn Error>> {
     let doc_id = Uuid::new_v4().to_string();
     let main_doc = Node::with_id(
         NodeId::from_string(doc_id.clone()),
@@ -262,10 +305,12 @@ async fn create_budget_review_document(data_store: &LanceDataStore, date: &str) 
         "document_type": "financial_review"
     }));
 
-    data_store.store_node_with_embedding(
-        main_doc,
-        create_embedding("budget review quarterly financial performance")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            main_doc,
+            create_embedding("budget review quarterly financial performance"),
+        )
+        .await?;
 
     let sections = vec![
         ("Revenue Performance", "## 📈 Revenue Performance\n\n**Q3 Results**: $1.2M (Target: $1.1M) ✅ +9% vs target\n\n**Breakdown by Channel**:\n- **Direct Sales**: $720K 💼\n- **Partner Channel**: $320K 🤝\n- **Online Revenue**: $160K 🌐\n\n**Growth Trends**: 15% YoY growth, strongest Q3 performance in company history! 🚀"),
@@ -277,8 +322,9 @@ async fn create_budget_review_document(data_store: &LanceDataStore, date: &str) 
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id),
-            serde_json::Value::String(content.to_string())
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(content.to_string()),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": doc_id,
@@ -286,17 +332,22 @@ async fn create_budget_review_document(data_store: &LanceDataStore, date: &str) 
             "section_type": "financial_section"
         }));
 
-        data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
+        data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
     }
 
     println!("   💰 Created Q3 Budget Review with 2 sections");
     Ok(())
 }
 
-async fn create_client_meeting_document(data_store: &LanceDataStore, date: &str) -> Result<(), Box<dyn Error>> {
+async fn create_client_meeting_document(
+    data_store: &LanceDataStore,
+    date: &str,
+) -> Result<(), Box<dyn Error>> {
     let doc_id = Uuid::new_v4().to_string();
     let main_doc = Node::with_id(
         NodeId::from_string(doc_id.clone()),
@@ -311,10 +362,12 @@ async fn create_client_meeting_document(data_store: &LanceDataStore, date: &str)
         "document_type": "client_meeting"
     }));
 
-    data_store.store_node_with_embedding(
-        main_doc,
-        create_embedding("client partnership techflow integration collaboration")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            main_doc,
+            create_embedding("client partnership techflow integration collaboration"),
+        )
+        .await?;
 
     let sections = vec![
         ("Partnership Opportunities", "## 🚀 Partnership Opportunities\n\n**Technical Integration**:\n- API connectivity for seamless data flow 🔗\n- White-label solution for their enterprise clients 🏷️\n- Joint product development roadmap 🛣️\n\n**Market Expansion**:\n- Co-marketing campaigns in Q4 📢\n- Shared booth at TechExpo 2025 🏢\n- Customer referral program 👥"),
@@ -326,8 +379,9 @@ async fn create_client_meeting_document(data_store: &LanceDataStore, date: &str)
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id),
-            serde_json::Value::String(content.to_string())
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(content.to_string()),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": doc_id,
@@ -335,17 +389,22 @@ async fn create_client_meeting_document(data_store: &LanceDataStore, date: &str)
             "section_type": "meeting_section"
         }));
 
-        data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
+        data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
     }
 
     println!("   🤝 Created Client Partnership Meeting with 2 sections");
     Ok(())
 }
 
-async fn create_project_retrospective_document(data_store: &LanceDataStore, date: &str) -> Result<(), Box<dyn Error>> {
+async fn create_project_retrospective_document(
+    data_store: &LanceDataStore,
+    date: &str,
+) -> Result<(), Box<dyn Error>> {
     let doc_id = Uuid::new_v4().to_string();
     let main_doc = Node::with_id(
         NodeId::from_string(doc_id.clone()),
@@ -360,10 +419,12 @@ async fn create_project_retrospective_document(data_store: &LanceDataStore, date
         "document_type": "retrospective"
     }));
 
-    data_store.store_node_with_embedding(
-        main_doc,
-        create_embedding("project retrospective ecommerce platform lessons learned")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            main_doc,
+            create_embedding("project retrospective ecommerce platform lessons learned"),
+        )
+        .await?;
 
     let sections = vec![
         ("What Went Well", "## ✅ What Went Well\n\n- **Team Collaboration**: Excellent cross-functional communication 🤝\n- **Technical Delivery**: Platform launched on schedule with 99.9% uptime 🚀\n- **User Feedback**: 4.7/5 average rating from beta users ⭐\n- **Performance**: 40% faster load times than previous platform ⚡"),
@@ -375,8 +436,9 @@ async fn create_project_retrospective_document(data_store: &LanceDataStore, date
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id),
-            serde_json::Value::String(content.to_string())
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(content.to_string()),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": doc_id,
@@ -384,17 +446,22 @@ async fn create_project_retrospective_document(data_store: &LanceDataStore, date
             "section_type": "retrospective_section"
         }));
 
-        data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
+        data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
     }
 
     println!("   🔄 Created Project Retrospective with 2 sections");
     Ok(())
 }
 
-async fn create_quarterly_planning_document(data_store: &LanceDataStore, date: &str) -> Result<(), Box<dyn Error>> {
+async fn create_quarterly_planning_document(
+    data_store: &LanceDataStore,
+    date: &str,
+) -> Result<(), Box<dyn Error>> {
     let doc_id = Uuid::new_v4().to_string();
     let main_doc = Node::with_id(
         NodeId::from_string(doc_id.clone()),
@@ -409,10 +476,12 @@ async fn create_quarterly_planning_document(data_store: &LanceDataStore, date: &
         "document_type": "strategic_planning"
     }));
 
-    data_store.store_node_with_embedding(
-        main_doc,
-        create_embedding("quarterly planning strategic goals market expansion")
-    ).await?;
+    data_store
+        .store_node_with_embedding(
+            main_doc,
+            create_embedding("quarterly planning strategic goals market expansion"),
+        )
+        .await?;
 
     let sections = vec![
         ("Revenue Goals", "## 💰 Revenue Goals\n\n**Q4 Targets**:\n- **Total Revenue**: $1.8M (50% growth) 📈\n- **New Customer Acquisition**: 200 enterprises 🏢\n- **Upsell Revenue**: $400K from existing clients ⬆️\n\n**Key Initiatives**:\n- Launch premium tier pricing 💎\n- Expand to European markets 🌍\n- Partner channel development 🤝"),
@@ -424,8 +493,9 @@ async fn create_quarterly_planning_document(data_store: &LanceDataStore, date: &
         let section_id = Uuid::new_v4().to_string();
         let section_node = Node::with_id(
             NodeId::from_string(section_id),
-            serde_json::Value::String(content.to_string())
-        ).with_metadata(serde_json::json!({
+            serde_json::Value::String(content.to_string()),
+        )
+        .with_metadata(serde_json::json!({
             "node_type": "text",
             "title": title,
             "parent_id": doc_id,
@@ -433,10 +503,12 @@ async fn create_quarterly_planning_document(data_store: &LanceDataStore, date: &
             "section_type": "planning_section"
         }));
 
-        data_store.store_node_with_embedding(
-            section_node,
-            create_embedding(&format!("{} {}", title, content))
-        ).await?;
+        data_store
+            .store_node_with_embedding(
+                section_node,
+                create_embedding(&format!("{} {}", title, content)),
+            )
+            .await?;
     }
 
     println!("   🎯 Created Quarterly Planning with 2 sections");
@@ -444,14 +516,14 @@ async fn create_quarterly_planning_document(data_store: &LanceDataStore, date: &
 }
 
 fn create_embedding(text: &str) -> Vec<f32> {
+    use rand::{Rng, SeedableRng};
     use std::collections::hash_map::DefaultHasher;
     use std::hash::{Hash, Hasher};
-    use rand::{SeedableRng, Rng};
-    
+
     let mut hasher = DefaultHasher::new();
     text.hash(&mut hasher);
     let seed = hasher.finish();
-    
+
     let mut rng = rand::rngs::StdRng::seed_from_u64(seed);
     (0..384).map(|_| rng.gen_range(-1.0..1.0)).collect()
 }

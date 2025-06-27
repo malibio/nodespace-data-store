@@ -106,11 +106,11 @@ pub struct Node {
 }
 ```
 
-**SurrealDB Schema (unchanged):**
-- `text` table: Content with embeddings
-- `date` table: Hierarchical organization  
-- `nodes` table: Generic node storage
-- Relationships: `date->contains->text` patterns
+**LanceDB Schema (Universal Document Schema):**
+- Single table: Universal entity storage with embeddings
+- Hierarchical relationships: JSON-based parent-child connections
+- Flexible metadata: Entity-specific fields via serde_json::Value
+- Vector optimization: Native columnar storage for fast similarity search
 
 **Vector Field:**
 - Field name: `embedding`
@@ -228,7 +228,7 @@ This migration establishes the pattern for future embedding model changes:
 ### Model Considerations
 
 When choosing future embedding models:
-- **Dimension Compatibility**: SurrealDB vector fields adapt automatically
+- **Dimension Compatibility**: LanceDB vector fields adapt automatically to different dimensions
 - **Performance Impact**: Consider generation speed vs quality tradeoffs
 - **Domain Specificity**: Match model to content type (business, technical, etc.)
 - **Language Support**: Ensure coverage for required languages
