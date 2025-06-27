@@ -3,8 +3,14 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DataStoreError {
+    #[error("SurrealDB error: {0}")]
+    SurrealDB(#[from] surrealdb::Error),
+
+    #[error("LanceDB error: {0}")]
+    LanceDB(String),
+
     #[error("Database error: {0}")]
-    Database(#[from] surrealdb::Error),
+    Database(String),
 
     #[error("Serialization error: {0}")]
     Serialization(#[from] serde_json::Error),
@@ -18,9 +24,6 @@ pub enum DataStoreError {
     #[error("Invalid vector: expected {expected} dimensions, got {actual}")]
     InvalidVector { expected: usize, actual: usize },
 
-    #[error("LanceDB error: {0}")]
-    LanceDB(String),
-
     #[error("I/O error: {0}")]
     IoError(String),
 }
@@ -28,6 +31,8 @@ pub enum DataStoreError {
 impl From<DataStoreError> for NodeSpaceError {
     fn from(err: DataStoreError) -> Self {
         match err {
+            DataStoreError::SurrealDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
+            DataStoreError::LanceDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::Database(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::Serialization(_) => NodeSpaceError::SerializationError(err.to_string()),
             DataStoreError::NodeNotFound(_) => NodeSpaceError::NotFound(err.to_string()),
@@ -35,7 +40,6 @@ impl From<DataStoreError> for NodeSpaceError {
             DataStoreError::InvalidVector { .. } => {
                 NodeSpaceError::ValidationError(err.to_string())
             }
-            DataStoreError::LanceDB(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::IoError(_) => NodeSpaceError::IoError(err.to_string()),
         }
     }

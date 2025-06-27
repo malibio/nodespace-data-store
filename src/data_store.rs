@@ -193,7 +193,7 @@ impl DataStore for SurrealDataStore {
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
         // Use proper type deserialization with dedicated struct
-        let search_results: Vec<SearchResult> = result.take(0).map_err(DataStoreError::Database)?;
+        let search_results: Vec<SearchResult> = result.take(0).map_err(DataStoreError::from)?;
 
         let results = search_results
             .into_iter()
@@ -272,7 +272,7 @@ impl DataStore for SurrealDataStore {
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
         // Use proper type deserialization with dedicated struct
-        let search_results: Vec<SearchResult> = result.take(0).map_err(DataStoreError::Database)?;
+        let search_results: Vec<SearchResult> = result.take(0).map_err(DataStoreError::from)?;
 
         let results = search_results
             .into_iter()
@@ -353,7 +353,7 @@ impl SurrealDataStore {
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
 
-        let value: surrealdb::Value = result.take(0).map_err(DataStoreError::Database)?;
+        let value: surrealdb::Value = result.take(0).map_err(DataStoreError::from)?;
 
         let json = serde_json::to_value(&value).map_err(DataStoreError::from)?;
 
@@ -453,7 +453,7 @@ impl SurrealDataStore {
             .await
             .map_err(DataStoreError::from)?;
         let text_records: Vec<TextRecord> =
-            text_result.take(0).map_err(DataStoreError::Database)?;
+            text_result.take(0).map_err(DataStoreError::from)?;
 
         let nodes: Vec<Node> = text_records.into_iter().map(Node::from).collect();
 
@@ -469,7 +469,7 @@ impl SurrealDataStore {
         let query = format!("SELECT * FROM {}->contains", from_thing);
 
         let mut result = self.db.query(query).await.map_err(DataStoreError::from)?;
-        let values: Vec<SurrealValue> = result.take(0).map_err(DataStoreError::Database)?;
+        let values: Vec<SurrealValue> = result.take(0).map_err(DataStoreError::from)?;
 
         // Convert SurrealValues to JSON
         let json_values: Vec<serde_json::Value> =

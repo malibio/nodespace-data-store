@@ -4,7 +4,7 @@ use nodespace_data_store::{DataStore, SurrealDataStore};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("=== Database Structure Example ===\n");
 
-    let store = SurrealDataStore::new("./data/sample.db").await?;
+    let store = SurrealDataStore::new("/Users/malibio/nodespace/data/sample.db").await?;
 
     // Show raw text records
     println!("TEXT RECORDS:");

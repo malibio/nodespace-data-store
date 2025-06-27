@@ -7,7 +7,7 @@ description = "Database, persistence, and vector storage for NodeSpace"
 [dependencies]
 nodespace-core-types = { path = "../nodespace-core-types" }
 
-# LanceDB Core
+# LanceDB Core (primary database)
 lancedb = "0.17"
 arrow-array = "53"
 arrow-schema = "53"
@@ -22,7 +22,7 @@ arrow-data = "53"
 # datafusion = "32"
 # polars = { version = "0.35", features = ["lazy"] }
 
-# Core infrastructure (KEEP)
+# Core infrastructure
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.0", features = ["full"] }
@@ -31,8 +31,9 @@ thiserror = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 rand = "0.8"
+futures = "0.3"
 
-# SurrealDB (KEEP during migration phase)
+# SurrealDB (legacy - for migration compatibility)
 surrealdb = { version = "2.3.6", features = ["kv-mem", "kv-rocksdb"] }
 
 [dev-dependencies]
