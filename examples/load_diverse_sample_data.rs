@@ -196,9 +196,9 @@ async fn create_hr_policy_document(
     // Policy sections
     let sections = vec![
         ("Eligibility Criteria", "## 📋 Eligibility Criteria\n\n- **Role Requirements**: Position must be suitable for remote work 🏠\n- **Performance Standards**: Meets or exceeds performance expectations ⭐\n- **Equipment Access**: Has reliable internet and necessary tech tools 💻\n- **Communication Skills**: Demonstrates strong written and verbal communication 📞"),
-        
+
         ("Work Arrangements", "## ⏰ Work Arrangements\n\n### Hybrid Options\n- **Flexible Hybrid**: 2-3 days in office, remainder remote 🔄\n- **Remote-First**: Primary remote with monthly office visits 🌐\n- **Project-Based**: In-office during collaborative phases 🤝\n\n### Core Hours\n- **Team Overlap**: 10:00 AM - 3:00 PM local time ⏰\n- **Meeting Windows**: Tuesday/Thursday 2:00-4:00 PM for all-hands 📅"),
-        
+
         ("Technology Requirements", "## 💻 Technology Requirements\n\n- **Secure VPN**: Mandatory for all remote connections 🔒\n- **Communication Tools**: Slack, Zoom, Google Workspace 📱\n- **Time Tracking**: Clockify for project time management ⏱️\n- **Security Training**: Quarterly cybersecurity certification 🛡️"),
     ];
 
@@ -255,9 +255,9 @@ async fn create_team_standup_document(
 
     let sections = vec![
         ("Sprint Progress", "## 📊 Sprint Progress\n\n✅ **Completed This Week**:\n- User authentication refactor (Sarah) 🔐\n- API rate limiting implementation (Mike) ⚡\n- Mobile responsive fixes (Jessica) 📱\n\n🔄 **In Progress**:\n- Payment gateway integration (David) 💳\n- Search functionality optimization (Lisa) 🔍"),
-        
+
         ("Blockers & Challenges", "## 🚧 Blockers & Challenges\n\n❌ **Current Blockers**:\n- Third-party API documentation incomplete 📚\n- Staging environment deployment issues 🔧\n\n💡 **Solutions Identified**:\n- DevOps team contacted for staging fix ⚙️\n- Alternative API vendor being evaluated 🔄"),
-        
+
         ("Action Items", "## ✅ Action Items\n\n**This Week's Focus**:\n- [ ] Complete payment integration testing by Friday 🧪\n- [ ] Schedule architecture review meeting 🏗️\n- [ ] Update project timeline in Jira 📋\n- [ ] Prepare demo for stakeholder review 🎯"),
     ];
 
@@ -314,7 +314,7 @@ async fn create_budget_review_document(
 
     let sections = vec![
         ("Revenue Performance", "## 📈 Revenue Performance\n\n**Q3 Results**: $1.2M (Target: $1.1M) ✅ +9% vs target\n\n**Breakdown by Channel**:\n- **Direct Sales**: $720K 💼\n- **Partner Channel**: $320K 🤝\n- **Online Revenue**: $160K 🌐\n\n**Growth Trends**: 15% YoY growth, strongest Q3 performance in company history! 🚀"),
-        
+
         ("Expense Analysis", "## 💸 Expense Analysis\n\n**Total Expenses**: $940K (Budget: $980K) ✅ Under budget by $40K\n\n**Category Breakdown**:\n- **Personnel Costs**: $620K (66%) 👥\n- **Technology & Tools**: $180K (19%) 💻\n- **Marketing & Sales**: $140K (15%) 📢\n\n**Cost Efficiency**: 22% improvement in cost-per-acquisition 📊"),
     ];
 
@@ -371,7 +371,7 @@ async fn create_client_meeting_document(
 
     let sections = vec![
         ("Partnership Opportunities", "## 🚀 Partnership Opportunities\n\n**Technical Integration**:\n- API connectivity for seamless data flow 🔗\n- White-label solution for their enterprise clients 🏷️\n- Joint product development roadmap 🛣️\n\n**Market Expansion**:\n- Co-marketing campaigns in Q4 📢\n- Shared booth at TechExpo 2025 🏢\n- Customer referral program 👥"),
-        
+
         ("Next Steps", "## ✅ Next Steps\n\n**Immediate Actions**:\n- [ ] Technical feasibility assessment (Due: July 5) 🔧\n- [ ] Legal review of partnership terms (Due: July 10) ⚖️\n- [ ] Pilot customer identification (Due: July 15) 🎯\n\n**Follow-up Meeting**: July 20, 2:00 PM PST 📅"),
     ];
 
@@ -413,7 +413,7 @@ async fn create_project_retrospective_document(
         )
     ).with_metadata(serde_json::json!({
         "node_type": "text",
-        "title": "E-Commerce Platform Retrospective", 
+        "title": "E-Commerce Platform Retrospective",
         "parent_date": date,
         "depth": 1,
         "document_type": "retrospective"
@@ -428,7 +428,7 @@ async fn create_project_retrospective_document(
 
     let sections = vec![
         ("What Went Well", "## ✅ What Went Well\n\n- **Team Collaboration**: Excellent cross-functional communication 🤝\n- **Technical Delivery**: Platform launched on schedule with 99.9% uptime 🚀\n- **User Feedback**: 4.7/5 average rating from beta users ⭐\n- **Performance**: 40% faster load times than previous platform ⚡"),
-        
+
         ("Challenges & Learnings", "## 🎓 Challenges & Learnings\n\n**Areas for Improvement**:\n- **Testing Coverage**: Need more automated integration tests 🧪\n- **Documentation**: API docs were incomplete at launch 📚\n- **Monitoring**: Better alerting needed for performance issues 📊\n\n**Key Learnings**:\n- Start security review earlier in the process 🔒\n- Involve customer success team in beta planning 📞"),
     ];
 
@@ -485,7 +485,7 @@ async fn create_quarterly_planning_document(
 
     let sections = vec![
         ("Revenue Goals", "## 💰 Revenue Goals\n\n**Q4 Targets**:\n- **Total Revenue**: $1.8M (50% growth) 📈\n- **New Customer Acquisition**: 200 enterprises 🏢\n- **Upsell Revenue**: $400K from existing clients ⬆️\n\n**Key Initiatives**:\n- Launch premium tier pricing 💎\n- Expand to European markets 🌍\n- Partner channel development 🤝"),
-        
+
         ("Product Roadmap", "## 🛣️ Product Roadmap\n\n**Q4 Feature Releases**:\n- **AI-Powered Analytics** (October) 🤖\n- **Mobile App 2.0** (November) 📱\n- **Enterprise SSO Integration** (December) 🔐\n\n**Innovation Focus**:\n- Machine learning capabilities 🧠\n- Real-time collaboration tools 🔄\n- Advanced security features 🛡️"),
     ];
 

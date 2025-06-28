@@ -1,8 +1,8 @@
 //! Create a date node with hierarchical Product Launch Campaign Strategy
 //! This example demonstrates proper LanceDB persistence with Universal Document Schema
 
-use arrow_array::{Array, ListArray, RecordBatch, RecordBatchIterator, StringArray};
 use arrow_array::builder::{ListBuilder, StringBuilder};
+use arrow_array::{Array, ListArray, RecordBatch, RecordBatchIterator, StringArray};
 use arrow_schema::{DataType, Field, Schema};
 use chrono::Utc;
 use lancedb::query::{ExecutableQuery, QueryBase};
@@ -204,8 +204,8 @@ async fn ensure_nodes_table(db: &Connection) -> Result<(), Box<dyn Error>> {
             Arc::new(StringArray::from(Vec::<Option<String>>::new())), // parent_id
             Arc::new(ListBuilder::new(StringBuilder::new()).finish()), // children_ids
             Arc::new(ListBuilder::new(StringBuilder::new()).finish()), // mentions
-            Arc::new(StringArray::from(Vec::<String>::new())), // created_at
-            Arc::new(StringArray::from(Vec::<String>::new())), // updated_at
+            Arc::new(StringArray::from(Vec::<String>::new())),         // created_at
+            Arc::new(StringArray::from(Vec::<String>::new())),         // updated_at
             Arc::new(StringArray::from(Vec::<Option<String>>::new())), // metadata
         ],
     )?;

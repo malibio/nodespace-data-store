@@ -149,7 +149,7 @@ impl PerformanceMonitor {
     /// Create new performance monitor with configuration
     pub fn new(config: PerformanceConfig) -> Self {
         Self {
-            _config: config,
+            config,
             metrics: Arc::new(Mutex::new(Vec::new())),
             aggregated: Arc::new(Mutex::new(HashMap::new())),
             alerts: Arc::new(Mutex::new(Vec::new())),
@@ -202,8 +202,15 @@ impl PerformanceMonitor {
     }
 
     /// Get aggregated metrics for specific operation type
-    pub fn get_operation_metrics(&self, operation_type: OperationType) -> Option<AggregatedMetrics> {
-        self.aggregated.lock().unwrap().get(&operation_type).cloned()
+    pub fn get_operation_metrics(
+        &self,
+        operation_type: OperationType,
+    ) -> Option<AggregatedMetrics> {
+        self.aggregated
+            .lock()
+            .unwrap()
+            .get(&operation_type)
+            .cloned()
     }
 
     /// Get recent performance alerts
@@ -225,7 +232,7 @@ impl PerformanceMonitor {
     /// Clear old metrics to prevent memory growth
     pub fn cleanup_old_metrics(&self, max_age: Duration) {
         let cutoff = Utc::now() - chrono::Duration::from_std(max_age).unwrap();
-        
+
         if let Ok(mut metrics) = self.metrics.lock() {
             metrics.retain(|m| m.timestamp > cutoff);
         }
@@ -442,7 +449,7 @@ mod tests {
     #[test]
     fn test_performance_monitor_basic() {
         let monitor = PerformanceMonitor::with_defaults();
-        
+
         let timer = monitor.start_operation(OperationType::CreateNode);
         thread::sleep(Duration::from_millis(10));
         timer.complete_success();
@@ -458,9 +465,9 @@ mod tests {
             enable_alerting: true,
             ..Default::default()
         };
-        
+
         let monitor = PerformanceMonitor::new(config);
-        
+
         // Simulate slow operation
         monitor.record_operation(
             OperationType::CreateNode,
@@ -472,7 +479,7 @@ mod tests {
 
         let alerts = monitor.get_recent_alerts(10);
         assert!(!alerts.is_empty());
-        
+
         if let AlertType::ThresholdExceeded { actual_ms, .. } = &alerts[0].alert_type {
             assert!(*actual_ms >= 100);
         } else {

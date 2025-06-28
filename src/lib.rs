@@ -17,15 +17,20 @@ pub mod performance;
 mod schema;
 
 // Conditional exports based on feature flags
+#[cfg(not(feature = "migration"))]
+pub use data_store::{
+    DataStore, HybridSearchConfig, ImageMetadata, ImageNode, NodeType, RelevanceFactors,
+    SearchResult,
+};
 #[cfg(feature = "migration")]
 pub use data_store::{DataStore, SurrealDataStore};
-#[cfg(not(feature = "migration"))]
-pub use data_store::DataStore;
 
 pub use error::DataStoreError;
-pub use lance_data_store::{LanceDataStore as LanceDataStoreFull, LanceDBConfig, UniversalDocument};
-pub use lance_data_store_simple::LanceDataStore;
-pub use performance::{PerformanceMonitor, PerformanceConfig, OperationType, PerformanceSummary};
+pub use lance_data_store::{
+    LanceDBConfig, LanceDataStore as LanceDataStoreFull, UniversalDocument,
+};
+pub use lance_data_store_simple::{EmbeddingGenerator, LanceDataStore};
+pub use performance::{OperationType, PerformanceConfig, PerformanceMonitor, PerformanceSummary};
 
 #[cfg(feature = "migration")]
 pub use surrealdb_types::*;

@@ -20,15 +20,12 @@ impl UniversalSchema {
             // Core identification
             Field::new("id", DataType::Utf8, false),
             Field::new("node_type", DataType::Utf8, false), // "text", "image", "date", "task", etc.
-            
             // Content (flexible for text and binary data)
             Field::new("content", DataType::Utf8, false), // Text content or base64 encoded binary
             Field::new("content_type", DataType::Utf8, false), // "text/plain", "image/png", etc.
             Field::new("content_size_bytes", DataType::UInt64, true), // Size for binary content
-            
             // Metadata (JSON blob for entity-specific fields)
             Field::new("metadata", DataType::Utf8, true),
-            
             // Vector embeddings (unified for text and image)
             Field::new(
                 "vector",
@@ -37,34 +34,33 @@ impl UniversalSchema {
             ),
             Field::new("vector_model", DataType::Utf8, true), // Model used for embedding
             Field::new("vector_dimensions", DataType::UInt32, true), // Vector size
-            
             // Structural relationships (simplified from SurrealDB graph model)
             Field::new("parent_id", DataType::Utf8, true),
-            Field::new("children_ids", DataType::List(
-                Arc::new(Field::new("item", DataType::Utf8, false))
-            ), true),
-            Field::new("mentions", DataType::List(
-                Arc::new(Field::new("item", DataType::Utf8, false))
-            ), true),
+            Field::new(
+                "children_ids",
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+                true,
+            ),
+            Field::new(
+                "mentions",
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
+                true,
+            ),
             Field::new("next_sibling", DataType::Utf8, true),
             Field::new("previous_sibling", DataType::Utf8, true),
-            
             // Temporal fields
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
-            
             // Multimodal specific fields
             Field::new("image_alt_text", DataType::Utf8, true), // Alt text for images
             Field::new("image_width", DataType::UInt32, true),
             Field::new("image_height", DataType::UInt32, true),
             Field::new("image_format", DataType::Utf8, true), // "png", "jpg", "webp", etc.
-            
             // Extensibility (ghost properties for infinite extensibility)
             Field::new("extended_properties", DataType::Utf8, true),
-            
             // Performance and indexing
             Field::new("search_priority", DataType::Float32, true), // Boost factor for search
-            Field::new("last_accessed", DataType::Utf8, true), // For cache management
+            Field::new("last_accessed", DataType::Utf8, true),      // For cache management
         ];
 
         Arc::new(Schema::new(fields))
@@ -246,7 +242,7 @@ mod tests {
     fn test_universal_schema_creation() {
         let schema = UniversalSchema::get_arrow_schema();
         assert!(schema.fields().len() > 15); // Should have all multimodal fields
-        
+
         // Check for key multimodal fields
         assert!(schema.field_with_name("content_type").is_ok());
         assert!(schema.field_with_name("image_width").is_ok());
@@ -258,7 +254,7 @@ mod tests {
         assert_eq!(NodeType::from("image"), NodeType::Image);
         assert_eq!(NodeType::from("TEXT"), NodeType::Text);
         assert_eq!(NodeType::from("unknown"), NodeType::Text);
-        
+
         assert_eq!(NodeType::Image.to_string(), "image");
         assert_eq!(NodeType::Text.to_string(), "text");
     }
@@ -268,7 +264,7 @@ mod tests {
         assert_eq!(ContentType::from("image/png"), ContentType::ImagePng);
         assert_eq!(ContentType::from("IMAGE/JPEG"), ContentType::ImageJpeg);
         assert_eq!(ContentType::from("unknown"), ContentType::TextPlain);
-        
+
         assert_eq!(ContentType::ImagePng.to_string(), "image/png");
         assert_eq!(ContentType::TextPlain.to_string(), "text/plain");
     }
