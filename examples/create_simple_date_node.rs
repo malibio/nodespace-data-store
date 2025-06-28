@@ -93,11 +93,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("✅ Stored launch overview node");
 
     // 5. Launch Overview details (level 3)
-    let details = ["**Product**: EcoSmart Professional Series",
+    let details = [
+        "**Product**: EcoSmart Professional Series",
         "**Launch Date**: July 15, 2025",
         "**Campaign Duration**: 12 weeks (4 weeks pre-launch, 4 weeks launch, 4 weeks post-launch)",
         "**Total Budget**: $180,000",
-        "**Primary Objective**: Establish market leadership in sustainable professional products"];
+        "**Primary Objective**: Establish market leadership in sustainable professional products",
+    ];
 
     for (i, detail) in details.iter().enumerate() {
         let detail_id = NodeId::from_string(Uuid::new_v4().to_string());

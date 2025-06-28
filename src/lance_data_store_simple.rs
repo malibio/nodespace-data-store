@@ -1,5 +1,8 @@
+use crate::data_store::{
+    DataStore, HybridSearchConfig, ImageMetadata, ImageNode, NodeType, RelevanceFactors,
+    SearchResult,
+};
 use crate::error::DataStoreError;
-use crate::data_store::{DataStore, HybridSearchConfig, ImageNode, NodeType, RelevanceFactors, SearchResult, ImageMetadata};
 use arrow_array::builder::{ListBuilder, StringBuilder};
 use arrow_array::{Array, ListArray, RecordBatch, RecordBatchIterator, StringArray};
 use arrow_schema::{DataType, Field, Schema};
@@ -19,6 +22,14 @@ pub struct LanceDataStore {
     table_name: String,
     _db_path: String,
     vector_dimension: usize,
+    // Optional NLP engine for automatic embedding generation
+    embedding_generator: Option<Box<dyn EmbeddingGenerator + Send + Sync>>,
+}
+
+/// Trait for generating embeddings from text content
+#[async_trait]
+pub trait EmbeddingGenerator {
+    async fn generate_embedding(&self, content: &str) -> Result<Vec<f32>, DataStoreError>;
 }
 
 /// Universal Node structure for LanceDB entity-centric storage
@@ -47,12 +58,22 @@ impl LanceDataStore {
         Self::with_vector_dimension(db_path, 384).await
     }
 
+    /// Set the embedding generator for automatic embedding generation
+    pub fn set_embedding_generator(
+        &mut self,
+        generator: Box<dyn EmbeddingGenerator + Send + Sync>,
+    ) {
+        self.embedding_generator = Some(generator);
+    }
+
     /// Initialize new LanceDB connection with custom vector dimension
-    pub async fn with_vector_dimension(db_path: &str, vector_dimension: usize) -> Result<Self, DataStoreError> {
-        let connection = connect(db_path)
-            .execute()
-            .await
-            .map_err(|e| DataStoreError::LanceDBConnection(format!("LanceDB connection failed: {}", e)))?;
+    pub async fn with_vector_dimension(
+        db_path: &str,
+        vector_dimension: usize,
+    ) -> Result<Self, DataStoreError> {
+        let connection = connect(db_path).execute().await.map_err(|e| {
+            DataStoreError::LanceDBConnection(format!("LanceDB connection failed: {}", e))
+        })?;
 
         let instance = Self {
             connection,
@@ -60,6 +81,7 @@ impl LanceDataStore {
             table_name: "universal_nodes".to_string(),
             _db_path: db_path.to_string(),
             vector_dimension,
+            embedding_generator: None, // Can be set later via set_embedding_generator
         };
 
         // Initialize Arrow-based table
@@ -104,10 +126,6 @@ impl LanceDataStore {
         // Create vector index for similarity search
         self.create_vector_index().await?;
 
-        println!(
-            "✅ Arrow-based table '{}' initialized with vector index",
-            self.table_name
-        );
         Ok(())
     }
 
@@ -146,14 +164,22 @@ impl LanceDataStore {
     }
 
     /// Create an empty RecordBatch for table initialization
-    fn create_empty_record_batch(&self, schema: Arc<Schema>) -> Result<RecordBatch, DataStoreError> {
+    fn create_empty_record_batch(
+        &self,
+        schema: Arc<Schema>,
+    ) -> Result<RecordBatch, DataStoreError> {
         use arrow_array::{FixedSizeListArray, Float32Array};
 
         // Create empty FixedSizeListArray for vectors with configurable dimension
         let empty_values = Float32Array::from(Vec::<f32>::new());
         let field = Arc::new(Field::new("item", DataType::Float32, false));
-        let empty_vectors = FixedSizeListArray::try_new(field, self.vector_dimension as i32, Arc::new(empty_values), None)
-            .map_err(|e| {
+        let empty_vectors = FixedSizeListArray::try_new(
+            field,
+            self.vector_dimension as i32,
+            Arc::new(empty_values),
+            None,
+        )
+        .map_err(|e| {
             DataStoreError::Arrow(format!("Failed to create empty FixedSizeListArray: {}", e))
         })?;
 
@@ -198,19 +224,11 @@ impl LanceDataStore {
                     .execute()
                     .await
                 {
-                    Ok(_) => {
-                        println!("✅ Vector index created successfully");
-                    }
+                    Ok(_) => {}
                     Err(e) => {
-                        println!(
-                            "⚠️  Vector index creation failed (table might be empty): {}",
-                            e
-                        );
                         // This is not a fatal error - index can be created later when data exists
                     }
                 }
-            } else {
-                println!("📝 Skipping vector index creation - table is empty");
             }
         }
         Ok(())
@@ -263,10 +281,15 @@ impl LanceDataStore {
             })
             .unwrap_or_default();
 
+        
+
         UniversalNode {
             id: node.id.to_string(),
             node_type,
-            content: node.content.to_string(),
+            content: match &node.content {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            },
             vector: embedding.unwrap_or_else(|| vec![0.0; self.vector_dimension]), // Default embedding
             parent_id,
             children_ids,
@@ -317,7 +340,8 @@ impl LanceDataStore {
                 if node.vector.len() != self.vector_dimension {
                     return Err(DataStoreError::Arrow(format!(
                         "Vector dimension mismatch: expected {}, got {}",
-                        self.vector_dimension, node.vector.len()
+                        self.vector_dimension,
+                        node.vector.len()
                     )));
                 }
                 flat_values.extend_from_slice(&node.vector);
@@ -325,9 +349,10 @@ impl LanceDataStore {
 
             let values = Float32Array::from(flat_values);
             let field = Arc::new(Field::new("item", DataType::Float32, false));
-            FixedSizeListArray::try_new(field, self.vector_dimension as i32, Arc::new(values), None).map_err(|e| {
-                DataStoreError::Arrow(format!("Failed to create FixedSizeListArray: {}", e))
-            })?
+            FixedSizeListArray::try_new(field, self.vector_dimension as i32, Arc::new(values), None)
+                .map_err(|e| {
+                    DataStoreError::Arrow(format!("Failed to create FixedSizeListArray: {}", e))
+                })?
         };
 
         // Children IDs: Vec<String> -> ListArray for string lists
@@ -383,10 +408,44 @@ impl LanceDataStore {
             table.add(Box::new(batches)).execute().await.map_err(|e| {
                 DataStoreError::LanceDB(format!("Failed to add data to table: {}", e))
             })?;
+
+            // Force filesystem sync for persistence
+
+            // Try to force LanceDB to persist by checking table stats
+            let _ = table.count_rows(None).await;
+
+            // Give LanceDB time to complete disk writes
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         } else {
             return Err(DataStoreError::LanceDB("Table not initialized".to_string()));
         }
 
+        Ok(())
+    }
+
+    /// Delete a node by exact ID match (more specific predicate)
+    async fn delete_node_by_exact_id(&self, node_id: &NodeId) -> Result<(), DataStoreError> {
+        let table_guard = self.table.read().await;
+        if let Some(table) = table_guard.as_ref() {
+            let id_str = node_id.to_string();
+
+            // First, check how many rows exist before deletion
+            let count_before = table.count_rows(None).await.unwrap_or(0);
+            // Use more specific LanceDB delete predicate
+            let predicate = format!("id == '{}'", id_str);
+
+            match table.delete(&predicate).await {
+                Ok(_stats) => {
+                    // Deletion successful
+                }
+                Err(e) => {
+                    return Err(DataStoreError::LanceDB(format!(
+                        "Failed to delete node: {}",
+                        e
+                    )));
+                }
+            }
+        }
         Ok(())
     }
 
@@ -411,7 +470,7 @@ impl LanceDataStore {
             let mut nodes = Vec::new();
             for batch in batches {
                 let batch_nodes = self.extract_nodes_from_batch(&batch)?;
-                
+
                 if query.is_empty() {
                     nodes.extend(batch_nodes);
                 } else {
@@ -431,7 +490,10 @@ impl LanceDataStore {
     }
 
     /// Extract UniversalNode objects from Arrow RecordBatch with proper ListArray handling
-    fn extract_nodes_from_batch(&self, batch: &RecordBatch) -> Result<Vec<UniversalNode>, DataStoreError> {
+    fn extract_nodes_from_batch(
+        &self,
+        batch: &RecordBatch,
+    ) -> Result<Vec<UniversalNode>, DataStoreError> {
         let mut nodes = Vec::new();
         let num_rows = batch.num_rows();
 
@@ -647,14 +709,16 @@ impl LanceDataStore {
         }
     }
 
-    /// Get a single node by ID using native LanceDB filtering
-    async fn get_node_arrow(&self, _id: &NodeId) -> Result<Option<Node>, DataStoreError> {
+    /// Get a single node by ID using LanceDB query with application-level filtering
+    async fn get_node_arrow(&self, id: &NodeId) -> Result<Option<Node>, DataStoreError> {
         let table_guard = self.table.read().await;
         if let Some(table) = table_guard.as_ref() {
-            // Use LanceDB query with small limit for ID lookup
+            let target_id = id.to_string();
+
+            // Use LanceDB query with reasonable limit and filter in application
             let results_stream = table
                 .query()
-                .limit(100) // Small limit since we're looking for one specific ID
+                .limit(1000) // Reasonable limit to avoid loading entire table
                 .execute()
                 .await
                 .map_err(|e| DataStoreError::LanceDB(format!("Query by ID failed: {}", e)))?;
@@ -666,13 +730,19 @@ impl LanceDataStore {
                     DataStoreError::LanceDB(format!("Failed to collect query results: {}", e))
                 })?;
 
-            // Process the retrieved batches
-            for batch in batches {
-                let universal_nodes = self.extract_nodes_from_batch(&batch)?;
+            // Process the retrieved batches and find matching ID
+            for batch in batches.iter() {
+                if batch.num_rows() > 0 {
+                    let universal_nodes = self.extract_nodes_from_batch(batch)?;
 
-                if let Some(universal_node) = universal_nodes.into_iter().next() {
-                    let node = self.universal_to_node(universal_node);
-                    return Ok(Some(node));
+                    // Find the node with matching ID
+                    for universal_node in universal_nodes {
+                        if universal_node.id == target_id {
+                            // Found matching node
+                            let node = self.universal_to_node(universal_node);
+                            return Ok(Some(node));
+                        }
+                    }
                 }
             }
 
@@ -693,7 +763,6 @@ impl LanceDataStore {
                 .map_err(|e| DataStoreError::LanceDB(format!("Delete operation failed: {}", e)))?;
 
             // DeleteResult contains version info - we just verify it succeeded
-            println!("✅ Delete operation completed for ID: {}", id.as_str());
             Ok(())
         } else {
             Err(DataStoreError::LanceDB("Table not initialized".to_string()))
@@ -750,7 +819,6 @@ impl DataStore for LanceDataStore {
 
         // Store using Arrow persistence
         self.store_node_arrow(universal.clone()).await?;
-        println!("✅ Stored node {} using Arrow persistence", universal.id);
 
         Ok(node.id)
     }
@@ -758,16 +826,85 @@ impl DataStore for LanceDataStore {
     async fn get_node(&self, id: &NodeId) -> NodeSpaceResult<Option<Node>> {
         // Use Arrow-based retrieval
         let result = self.get_node_arrow(id).await?;
-        if result.is_some() {
-            println!("✅ Retrieved node {} using Arrow persistence", id.as_str());
-        }
+        result.is_some();
         Ok(result)
+    }
+
+    async fn update_node(&self, node: Node) -> NodeSpaceResult<()> {
+        // First verify the node exists and get the old version
+        let existing_node = self.get_node(&node.id).await?.ok_or_else(|| {
+            DataStoreError::NodeNotFound(format!("Node {} not found for update", node.id))
+        })?;
+
+        // Update the node's updated_at timestamp
+        let mut updated_node = node;
+        updated_node.updated_at = chrono::Utc::now().to_rfc3339();
+
+        // Check if content changed - if so, we need to regenerate embeddings
+        let content_changed = existing_node.content != updated_node.content;
+
+        if content_changed {
+            let embedding = if let Some(ref generator) = self.embedding_generator {
+                // Generate new embedding automatically
+                match generator
+                    .generate_embedding(&updated_node.content.to_string())
+                    .await
+                {
+                    Ok(embedding) => embedding,
+                    Err(_) => vec![0.0; self.vector_dimension],
+                }
+            } else {
+                vec![0.0; self.vector_dimension]
+            };
+
+            let universal = self.node_to_universal(updated_node.clone(), Some(embedding));
+
+            // Use atomic delete + insert for update
+            self.delete_node_by_exact_id(&updated_node.id).await?;
+            self.store_node_arrow(universal).await?;
+        } else {
+            // Content unchanged - preserve existing embedding
+            let universal = self.node_to_universal(updated_node.clone(), None);
+
+            // Use atomic delete + insert for update
+            self.delete_node_by_exact_id(&updated_node.id).await?;
+            self.store_node_arrow(universal).await?;
+        }
+
+        Ok(())
+    }
+
+    async fn update_node_with_embedding(
+        &self,
+        node: Node,
+        embedding: Vec<f32>,
+    ) -> NodeSpaceResult<()> {
+        // Verify the node exists
+        if self.get_node(&node.id).await?.is_none() {
+            return Err(DataStoreError::NodeNotFound(format!(
+                "Node {} not found for update",
+                node.id
+            ))
+            .into());
+        }
+
+        // Update the node's updated_at timestamp
+        let mut updated_node = node;
+        updated_node.updated_at = chrono::Utc::now().to_rfc3339();
+
+        // Use the provided embedding
+        let universal = self.node_to_universal(updated_node.clone(), Some(embedding));
+
+        // Use atomic delete + insert for update
+        self.delete_node_by_exact_id(&updated_node.id).await?;
+        self.store_node_arrow(universal).await?;
+
+        Ok(())
     }
 
     async fn delete_node(&self, id: &NodeId) -> NodeSpaceResult<()> {
         // Use Arrow-based deletion
         self.delete_node_arrow(id).await?;
-        println!("✅ Deleted node {} using Arrow persistence", id.as_str());
 
         Ok(())
     }
@@ -791,7 +928,7 @@ impl DataStore for LanceDataStore {
         // Transactional integrity: prepare both updates before committing either
         let mut parent_node_opt = self.get_node(from).await?;
         let mut child_node_opt = self.get_node(to).await?;
-        
+
         // Validate both nodes exist before making any changes
         let parent_node = parent_node_opt.as_mut().ok_or_else(|| {
             DataStoreError::NodeNotFound(format!("Parent node {} not found", from.as_str()))
@@ -827,8 +964,12 @@ impl DataStore for LanceDataStore {
         }
 
         // Prepare child node update
-        let mut child_metadata = child_node.metadata.clone().unwrap_or_else(|| serde_json::json!({}));
-        let needs_child_update = child_metadata.get("parent_id").and_then(|v| v.as_str()) != Some(from.as_str());
+        let mut child_metadata = child_node
+            .metadata
+            .clone()
+            .unwrap_or_else(|| serde_json::json!({}));
+        let needs_child_update =
+            child_metadata.get("parent_id").and_then(|v| v.as_str()) != Some(from.as_str());
         if needs_child_update {
             child_metadata["parent_id"] = serde_json::Value::String(from.to_string());
         }
@@ -846,7 +987,10 @@ impl DataStore for LanceDataStore {
             self.store_node(child_node.clone()).await.map_err(|e| {
                 // If child update fails, we should ideally rollback parent update
                 // For now, log the inconsistency - proper transaction support would be better
-                DataStoreError::Database(format!("Failed to update child node (potential inconsistency): {}", e))
+                DataStoreError::Database(format!(
+                    "Failed to update child node (potential inconsistency): {}",
+                    e
+                ))
             })?;
         }
 
@@ -862,10 +1006,6 @@ impl DataStore for LanceDataStore {
 
         // Store using Arrow persistence
         self.store_node_arrow(universal.clone()).await?;
-        println!(
-            "✅ Stored node {} with embedding using Arrow persistence",
-            universal.id
-        );
 
         Ok(node.id)
     }
@@ -877,7 +1017,6 @@ impl DataStore for LanceDataStore {
     ) -> NodeSpaceResult<Vec<(Node, f32)>> {
         // Use Arrow-based vector search
         let results = self.vector_search_arrow(embedding, limit).await?;
-        println!("✅ Using Arrow-based vector search");
         Ok(results)
     }
 

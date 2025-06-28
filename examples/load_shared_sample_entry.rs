@@ -95,7 +95,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Product Positioning Strategy (will have subsections)
     let positioning_id = create_section(
         &data_store,
-        "Product Positioning Strategy", 
+        "Product Positioning Strategy",
         "## Product Positioning Strategy\n\nStrategic positioning framework for market differentiation and competitive advantage.",
         strategy_id.as_str(),
         2

@@ -153,7 +153,7 @@ impl LanceDBImporter {
         stats: &mut MigrationStats,
     ) -> Result<(), DataStoreError> {
         let file_path = export_dir.join(&export_file.file_name);
-        
+
         match export_file.table_name.as_str() {
             "text" => {
                 let export_data: ExportData<TextRecord> = self.read_export_file(&file_path).await?;
@@ -195,7 +195,7 @@ impl LanceDBImporter {
 
         for text_record in export_data.records {
             let document = self.text_record_to_universal_document(&text_record)?;
-            
+
             match self.insert_document_with_retry(&document).await {
                 Ok(_) => {
                     stats.migrated_records += 1;
@@ -221,7 +221,7 @@ impl LanceDBImporter {
 
         for date_record in export_data.records {
             let document = self.date_record_to_universal_document(&date_record)?;
-            
+
             match self.insert_document_with_retry(&document).await {
                 Ok(_) => {
                     stats.migrated_records += 1;
@@ -247,7 +247,7 @@ impl LanceDBImporter {
 
         for node_record in export_data.records {
             let document = self.node_record_to_universal_document(&node_record, NodeType::Task)?;
-            
+
             match self.insert_document_with_retry(&document).await {
                 Ok(_) => {
                     stats.migrated_records += 1;
@@ -273,7 +273,7 @@ impl LanceDBImporter {
 
         for node_record in export_data.records {
             let document = self.node_record_to_universal_document(&node_record, NodeType::Text)?;
-            
+
             match self.insert_document_with_retry(&document).await {
                 Ok(_) => {
                     stats.migrated_records += 1;
@@ -311,7 +311,7 @@ impl LanceDBImporter {
     /// Convert TextRecord to UniversalDocument
     fn text_record_to_universal_document(&self, record: &TextRecord) -> Result<UniversalDocument, DataStoreError> {
         let now = Utc::now().to_rfc3339();
-        
+
         Ok(UniversalDocument {
             id: record.id.to_string().replace(':', "-"), // Convert SurrealDB ID format
             node_type: NodeType::Text.to_string(),
@@ -342,7 +342,7 @@ impl LanceDBImporter {
     /// Convert DateRecord to UniversalDocument
     fn date_record_to_universal_document(&self, record: &DateRecord) -> Result<UniversalDocument, DataStoreError> {
         let now = Utc::now().to_rfc3339();
-        
+
         Ok(UniversalDocument {
             id: record.id.to_string().replace(':', "-"),
             node_type: NodeType::Date.to_string(),
@@ -372,12 +372,12 @@ impl LanceDBImporter {
 
     /// Convert NodeRecord to UniversalDocument
     fn node_record_to_universal_document(
-        &self, 
-        record: &NodeRecord, 
+        &self,
+        record: &NodeRecord,
         node_type: NodeType
     ) -> Result<UniversalDocument, DataStoreError> {
         let now = Utc::now().to_rfc3339();
-        
+
         Ok(UniversalDocument {
             id: record.id.to_string().replace(':', "-"),
             node_type: node_type.to_string(),
@@ -416,7 +416,7 @@ impl LanceDBImporter {
                 Err(e) => {
                     attempts += 1;
                     last_error = Some(e);
-                    
+
                     if attempts < self.config.max_retry_attempts {
                         // Exponential backoff
                         let delay_ms = 100 * (2_u64.pow(attempts));

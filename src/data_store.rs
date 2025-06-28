@@ -20,6 +20,12 @@ use surrealdb::Surreal;
 pub trait DataStore {
     async fn store_node(&self, node: Node) -> NodeSpaceResult<NodeId>;
     async fn get_node(&self, id: &NodeId) -> NodeSpaceResult<Option<Node>>;
+    async fn update_node(&self, node: Node) -> NodeSpaceResult<()>;
+    async fn update_node_with_embedding(
+        &self,
+        node: Node,
+        embedding: Vec<f32>,
+    ) -> NodeSpaceResult<()>;
     async fn delete_node(&self, id: &NodeId) -> NodeSpaceResult<()>;
     async fn query_nodes(&self, query: &str) -> NodeSpaceResult<Vec<Node>>;
     async fn create_relationship(
@@ -172,6 +178,45 @@ impl DataStore for SurrealDataStore {
             Some(record) => Ok(Some(Node::from(record))),
             None => Ok(None),
         }
+    }
+
+    async fn update_node(&self, node: Node) -> NodeSpaceResult<()> {
+        let record_id = node_id_to_record_id(&node.id);
+
+        // Update the existing record
+        let mut node_record = NodeRecord::from(node);
+        node_record.updated_at = chrono::Utc::now().to_rfc3339();
+
+        let _updated_record: Option<NodeRecord> = self
+            .db
+            .update(record_id)
+            .content(node_record)
+            .await
+            .map_err(DataStoreError::from)?;
+
+        Ok(())
+    }
+
+    async fn update_node_with_embedding(
+        &self,
+        node: Node,
+        embedding: Vec<f32>,
+    ) -> NodeSpaceResult<()> {
+        let record_id = node_id_to_record_id(&node.id);
+
+        // Update the existing record with new embedding
+        let mut node_record = NodeRecord::from(node);
+        node_record.updated_at = chrono::Utc::now().to_rfc3339();
+        node_record.embedding = Some(embedding);
+
+        let _updated_record: Option<NodeRecord> = self
+            .db
+            .update(record_id)
+            .content(node_record)
+            .await
+            .map_err(DataStoreError::from)?;
+
+        Ok(())
     }
 
     async fn delete_node(&self, id: &NodeId) -> NodeSpaceResult<()> {
@@ -532,8 +577,7 @@ impl SurrealDataStore {
             .query(text_query)
             .await
             .map_err(DataStoreError::from)?;
-        let text_records: Vec<TextRecord> =
-            text_result.take(0).map_err(DataStoreError::from)?;
+        let text_records: Vec<TextRecord> = text_result.take(0).map_err(DataStoreError::from)?;
 
         let nodes: Vec<Node> = text_records.into_iter().map(Node::from).collect();
 

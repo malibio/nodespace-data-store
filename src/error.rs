@@ -52,7 +52,9 @@ pub enum DataStoreError {
     #[error("Invalid vector: expected {expected} dimensions, got {actual}")]
     InvalidVector { expected: usize, actual: usize },
 
-    #[error("Performance threshold exceeded: {operation} took {actual_ms}ms, limit is {threshold_ms}ms")]
+    #[error(
+        "Performance threshold exceeded: {operation} took {actual_ms}ms, limit is {threshold_ms}ms"
+    )]
     PerformanceThresholdExceeded {
         operation: String,
         actual_ms: u64,
@@ -96,7 +98,9 @@ impl From<DataStoreError> for NodeSpaceError {
             DataStoreError::LanceDBSchema(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::LanceDBQuery(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::ArrowConversion(_) => NodeSpaceError::DatabaseError(err.to_string()),
-            DataStoreError::VectorIndexCreation(_) => NodeSpaceError::DatabaseError(err.to_string()),
+            DataStoreError::VectorIndexCreation(_) => {
+                NodeSpaceError::DatabaseError(err.to_string())
+            }
             DataStoreError::VectorSearchError(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::Arrow(_) => NodeSpaceError::DatabaseError(err.to_string()),
             DataStoreError::Database(_) => NodeSpaceError::DatabaseError(err.to_string()),
