@@ -602,6 +602,69 @@ impl DataStore for LanceDataStore {
         // TODO: Implement hybrid multimodal search for full LanceDB
         Ok(vec![])
     }
+
+    // NEW: Multi-level embedding methods for NS-94 - Stub implementations
+    async fn store_node_with_multi_embeddings(
+        &self,
+        _node: Node,
+        _embeddings: crate::data_store::MultiLevelEmbeddings,
+    ) -> NodeSpaceResult<NodeId> {
+        // TODO: Implement store_node_with_multi_embeddings for full LanceDB
+        Err(crate::error::DataStoreError::NotImplemented("store_node_with_multi_embeddings not yet implemented for full LanceDB".to_string()).into())
+    }
+
+    async fn update_node_embeddings(
+        &self,
+        _node_id: &NodeId,
+        _embeddings: crate::data_store::MultiLevelEmbeddings,
+    ) -> NodeSpaceResult<()> {
+        // TODO: Implement update_node_embeddings for full LanceDB
+        Err(crate::error::DataStoreError::NotImplemented("update_node_embeddings not yet implemented for full LanceDB".to_string()).into())
+    }
+
+    async fn get_node_embeddings(
+        &self,
+        _node_id: &NodeId,
+    ) -> NodeSpaceResult<Option<crate::data_store::MultiLevelEmbeddings>> {
+        // TODO: Implement get_node_embeddings for full LanceDB
+        Ok(None)
+    }
+
+    async fn search_by_individual_embedding(
+        &self,
+        _embedding: Vec<f32>,
+        _limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // TODO: Implement search_by_individual_embedding for full LanceDB
+        Ok(vec![])
+    }
+
+    async fn search_by_contextual_embedding(
+        &self,
+        _embedding: Vec<f32>,
+        _limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // TODO: Implement search_by_contextual_embedding for full LanceDB
+        Ok(vec![])
+    }
+
+    async fn search_by_hierarchical_embedding(
+        &self,
+        _embedding: Vec<f32>,
+        _limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // TODO: Implement search_by_hierarchical_embedding for full LanceDB
+        Ok(vec![])
+    }
+
+    async fn hybrid_semantic_search(
+        &self,
+        _embeddings: crate::data_store::QueryEmbeddings,
+        _config: crate::data_store::HybridSearchConfig,
+    ) -> NodeSpaceResult<Vec<crate::data_store::SearchResult>> {
+        // TODO: Implement hybrid_semantic_search for full LanceDB
+        Ok(vec![])
+    }
 }
 
 // Add base64 dependency to Cargo.toml

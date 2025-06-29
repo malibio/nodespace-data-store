@@ -32,12 +32,21 @@ pub trait EmbeddingGenerator {
     async fn generate_embedding(&self, content: &str) -> Result<Vec<f32>, DataStoreError>;
 }
 
-/// Universal Node structure for LanceDB entity-centric storage
+/// Universal Node structure for LanceDB entity-centric storage with multi-level embeddings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UniversalNode {
     pub id: String,
     pub node_type: String, // "text", "date", "task", "customer", "project", etc.
     pub content: String,
+    
+    // Multi-level embeddings for NS-94
+    pub individual_vector: Vec<f32>,            // Individual content embedding (384-dim)
+    pub contextual_vector: Option<Vec<f32>>,    // Context-aware embedding (384-dim)
+    pub hierarchical_vector: Option<Vec<f32>>,  // Hierarchical path embedding (384-dim)
+    pub embedding_model: Option<String>,        // Model used for generation
+    pub embeddings_generated_at: Option<String>, // Timestamp for embedding generation
+
+    // Backward compatibility - maps to individual_vector
     pub vector: Vec<f32>, // 384-dimensional embedding from FastEmbed
 
     // JSON-based relationships for entity connections
@@ -129,13 +138,42 @@ impl LanceDataStore {
         Ok(())
     }
 
-    /// Create the Universal Document Schema with configurable vector dimension
+    /// Create the Universal Document Schema with multi-level embeddings support
     fn create_universal_schema(&self) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
             Field::new("node_type", DataType::Utf8, false),
             Field::new("content", DataType::Utf8, false),
-            // Vector field - FixedSizeList of Float32 for LanceDB vector indexing
+            
+            // Multi-level embedding vectors for NS-94
+            Field::new(
+                "individual_vector",
+                DataType::FixedSizeList(
+                    Arc::new(Field::new("item", DataType::Float32, false)),
+                    self.vector_dimension as i32,
+                ),
+                false,
+            ),
+            Field::new(
+                "contextual_vector",
+                DataType::FixedSizeList(
+                    Arc::new(Field::new("item", DataType::Float32, false)),
+                    self.vector_dimension as i32,
+                ),
+                true, // Nullable
+            ),
+            Field::new(
+                "hierarchical_vector",
+                DataType::FixedSizeList(
+                    Arc::new(Field::new("item", DataType::Float32, false)),
+                    self.vector_dimension as i32,
+                ),
+                true, // Nullable
+            ),
+            Field::new("embedding_model", DataType::Utf8, true), // Nullable
+            Field::new("embeddings_generated_at", DataType::Utf8, true), // Nullable
+            
+            // Backward compatibility vector field - FixedSizeList of Float32 for LanceDB vector indexing
             Field::new(
                 "vector",
                 DataType::FixedSizeList(
@@ -225,7 +263,7 @@ impl LanceDataStore {
                     .await
                 {
                     Ok(_) => {}
-                    Err(e) => {
+                    Err(_e) => {
                         // This is not a fatal error - index can be created later when data exists
                     }
                 }
@@ -234,7 +272,7 @@ impl LanceDataStore {
         Ok(())
     }
 
-    /// Convert NodeSpace Node to UniversalNode
+    /// Convert NodeSpace Node to UniversalNode with multi-level embeddings support
     fn node_to_universal(&self, node: Node, embedding: Option<Vec<f32>>) -> UniversalNode {
         let now = chrono::Utc::now().to_rfc3339();
 
@@ -281,7 +319,45 @@ impl LanceDataStore {
             })
             .unwrap_or_default();
 
+        // Extract multi-level embeddings from metadata if available
+        let default_vector = vec![0.0; self.vector_dimension];
+        let individual_vector = embedding.clone().unwrap_or_else(|| default_vector.clone());
         
+        let contextual_vector = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("contextual_vector"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect()
+            });
+
+        let hierarchical_vector = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("hierarchical_vector"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_f64().map(|f| f as f32))
+                    .collect()
+            });
+
+        let embedding_model = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("embedding_model"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let embeddings_generated_at = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("embeddings_generated_at"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
 
         UniversalNode {
             id: node.id.to_string(),
@@ -290,7 +366,93 @@ impl LanceDataStore {
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
             },
-            vector: embedding.unwrap_or_else(|| vec![0.0; self.vector_dimension]), // Default embedding
+            individual_vector: individual_vector.clone(),
+            contextual_vector,
+            hierarchical_vector,
+            embedding_model,
+            embeddings_generated_at,
+            vector: individual_vector, // Backward compatibility
+            parent_id,
+            children_ids,
+            mentions,
+            created_at: if node.created_at.is_empty() {
+                now.clone()
+            } else {
+                node.created_at
+            },
+            updated_at: if node.updated_at.is_empty() {
+                now
+            } else {
+                node.updated_at
+            },
+            metadata: node.metadata,
+        }
+    }
+
+    /// Convert NodeSpace Node to UniversalNode with multi-level embeddings
+    fn node_to_universal_with_multi_embeddings(
+        &self,
+        node: Node,
+        embeddings: crate::data_store::MultiLevelEmbeddings,
+    ) -> UniversalNode {
+        let now = chrono::Utc::now().to_rfc3339();
+
+        // Infer node type from content or metadata
+        let node_type = if let Some(metadata) = &node.metadata {
+            if let Some(node_type) = metadata.get("node_type").and_then(|v| v.as_str()) {
+                node_type.to_string()
+            } else {
+                "text".to_string() // Default type
+            }
+        } else {
+            "text".to_string()
+        };
+
+        // Extract relationships from metadata
+        let parent_id = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("parent_id"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        let children_ids = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("children_ids"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let mentions = node
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("mentions"))
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        UniversalNode {
+            id: node.id.to_string(),
+            node_type,
+            content: match &node.content {
+                serde_json::Value::String(s) => s.clone(),
+                other => other.to_string(),
+            },
+            individual_vector: embeddings.individual.clone(),
+            contextual_vector: embeddings.contextual.clone(),
+            hierarchical_vector: embeddings.hierarchical.clone(),
+            embedding_model: embeddings.embedding_model.clone(),
+            embeddings_generated_at: Some(embeddings.generated_at.to_rfc3339()),
+            vector: embeddings.individual, // Backward compatibility
             parent_id,
             children_ids,
             mentions,
@@ -430,7 +592,7 @@ impl LanceDataStore {
             let id_str = node_id.to_string();
 
             // First, check how many rows exist before deletion
-            let count_before = table.count_rows(None).await.unwrap_or(0);
+            let _count_before = table.count_rows(None).await.unwrap_or(0);
             // Use more specific LanceDB delete predicate
             let predicate = format!("id == '{}'", id_str);
 
@@ -646,6 +808,11 @@ impl LanceDataStore {
                 id,
                 node_type,
                 content,
+                individual_vector: vector.clone(),
+                contextual_vector: None,
+                hierarchical_vector: None,
+                embedding_model: None,
+                embeddings_generated_at: None,
                 vector,
                 parent_id,
                 children_ids,
@@ -777,8 +944,8 @@ impl LanceDataStore {
 
         // Store additional fields in metadata
         metadata["node_type"] = serde_json::Value::String(universal.node_type);
-        if let Some(parent_id) = universal.parent_id {
-            metadata["parent_id"] = serde_json::Value::String(parent_id);
+        if let Some(ref parent_id) = universal.parent_id {
+            metadata["parent_id"] = serde_json::Value::String(parent_id.clone());
         }
         if !universal.children_ids.is_empty() {
             metadata["children_ids"] = serde_json::Value::Array(
@@ -805,6 +972,7 @@ impl LanceDataStore {
             metadata: Some(metadata),
             created_at: universal.created_at,
             updated_at: universal.updated_at,
+            parent_id: universal.parent_id.map(|p| NodeId::from_string(p)),
             next_sibling: None,
             previous_sibling: None,
         }
@@ -826,7 +994,6 @@ impl DataStore for LanceDataStore {
     async fn get_node(&self, id: &NodeId) -> NodeSpaceResult<Option<Node>> {
         // Use Arrow-based retrieval
         let result = self.get_node_arrow(id).await?;
-        result.is_some();
         Ok(result)
     }
 
@@ -1061,6 +1228,11 @@ impl DataStore for LanceDataStore {
                 .metadata
                 .description
                 .unwrap_or_else(|| format!("Image: {}", image_node.metadata.filename)),
+            individual_vector: image_node.embedding.clone(),
+            contextual_vector: None,
+            hierarchical_vector: None,
+            embedding_model: None,
+            embeddings_generated_at: None,
             vector: image_node.embedding,
             parent_id: None,
             children_ids: vec![],
@@ -1263,6 +1435,199 @@ impl DataStore for LanceDataStore {
                     structural_score,
                     temporal_score,
                     cross_modal_score,
+                },
+            };
+
+            results.push(search_result);
+        }
+
+        // Sort by final score and apply limits
+        results.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap());
+        results.truncate(config.max_results);
+
+        Ok(results)
+    }
+
+    // NEW: Multi-level embedding methods for NS-94
+    async fn store_node_with_multi_embeddings(
+        &self,
+        node: Node,
+        embeddings: crate::data_store::MultiLevelEmbeddings,
+    ) -> NodeSpaceResult<NodeId> {
+        let universal = self.node_to_universal_with_multi_embeddings(node.clone(), embeddings);
+
+        // Store using Arrow persistence
+        self.store_node_arrow(universal).await?;
+
+        Ok(node.id)
+    }
+
+    async fn update_node_embeddings(
+        &self,
+        node_id: &NodeId,
+        embeddings: crate::data_store::MultiLevelEmbeddings,
+    ) -> NodeSpaceResult<()> {
+        // Get the existing node
+        if let Some(node) = self.get_node(node_id).await? {
+            // Convert with new embeddings
+            let universal = self.node_to_universal_with_multi_embeddings(node, embeddings);
+
+            // Use atomic delete + insert for update
+            self.delete_node_by_exact_id(node_id).await?;
+            self.store_node_arrow(universal).await?;
+
+            Ok(())
+        } else {
+            Err(DataStoreError::NodeNotFound(format!("Node {} not found", node_id)).into())
+        }
+    }
+
+    async fn get_node_embeddings(
+        &self,
+        node_id: &NodeId,
+    ) -> NodeSpaceResult<Option<crate::data_store::MultiLevelEmbeddings>> {
+        // Get the node from Arrow storage
+        let universal_nodes = self.query_nodes_arrow("").await?;
+
+        for universal_node in universal_nodes {
+            if universal_node.id == node_id.to_string() {
+                let embeddings = crate::data_store::MultiLevelEmbeddings {
+                    individual: universal_node.individual_vector,
+                    contextual: universal_node.contextual_vector,
+                    hierarchical: universal_node.hierarchical_vector,
+                    embedding_model: universal_node.embedding_model,
+                    generated_at: if let Some(timestamp_str) = universal_node.embeddings_generated_at {
+                        chrono::DateTime::parse_from_rfc3339(&timestamp_str)
+                            .map(|dt| dt.with_timezone(&chrono::Utc))
+                            .unwrap_or_else(|_| chrono::Utc::now())
+                    } else {
+                        chrono::Utc::now()
+                    },
+                };
+                return Ok(Some(embeddings));
+            }
+        }
+
+        Ok(None)
+    }
+
+    async fn search_by_individual_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // Use individual_vector field for search
+        let universal_nodes = self.query_nodes_arrow("").await?;
+        let mut results = Vec::new();
+
+        for universal_node in universal_nodes {
+            let similarity = cosine_similarity(&embedding, &universal_node.individual_vector);
+            if similarity > 0.1 {
+                let node = self.universal_to_node(universal_node);
+                results.push((node, similarity));
+            }
+        }
+
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    async fn search_by_contextual_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // Use contextual_vector field for search
+        let universal_nodes = self.query_nodes_arrow("").await?;
+        let mut results = Vec::new();
+
+        for universal_node in universal_nodes {
+            if let Some(ref contextual_vector) = universal_node.contextual_vector {
+                let similarity = cosine_similarity(&embedding, contextual_vector);
+                if similarity > 0.1 {
+                    let node = self.universal_to_node(universal_node);
+                    results.push((node, similarity));
+                }
+            }
+        }
+
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    async fn search_by_hierarchical_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>> {
+        // Use hierarchical_vector field for search
+        let universal_nodes = self.query_nodes_arrow("").await?;
+        let mut results = Vec::new();
+
+        for universal_node in universal_nodes {
+            if let Some(ref hierarchical_vector) = universal_node.hierarchical_vector {
+                let similarity = cosine_similarity(&embedding, hierarchical_vector);
+                if similarity > 0.1 {
+                    let node = self.universal_to_node(universal_node);
+                    results.push((node, similarity));
+                }
+            }
+        }
+
+        results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        results.truncate(limit);
+        Ok(results)
+    }
+
+    async fn hybrid_semantic_search(
+        &self,
+        embeddings: crate::data_store::QueryEmbeddings,
+        config: crate::data_store::HybridSearchConfig,
+    ) -> NodeSpaceResult<Vec<crate::data_store::SearchResult>> {
+        let universal_nodes = self.query_nodes_arrow("").await?;
+        let mut results = Vec::new();
+
+        for universal_node in universal_nodes {
+            // Calculate individual embedding similarity
+            let individual_score = cosine_similarity(&embeddings.individual, &universal_node.individual_vector);
+            
+            // Calculate contextual embedding similarity if available
+            let contextual_score = if let (Some(ref query_contextual), Some(ref node_contextual)) = 
+                (&embeddings.contextual, &universal_node.contextual_vector) {
+                cosine_similarity(query_contextual, node_contextual)
+            } else {
+                0.0
+            };
+
+            // Calculate hierarchical embedding similarity if available  
+            let hierarchical_score = if let (Some(ref query_hierarchical), Some(ref node_hierarchical)) = 
+                (&embeddings.hierarchical, &universal_node.hierarchical_vector) {
+                cosine_similarity(query_hierarchical, node_hierarchical)
+            } else {
+                0.0
+            };
+
+            // Calculate weighted final score
+            let final_score = (individual_score * config.individual_weight as f32)
+                + (contextual_score * config.contextual_weight as f32)
+                + (hierarchical_score * config.hierarchical_weight as f32);
+
+            // Skip if below minimum threshold
+            if final_score < config.min_similarity_threshold as f32 {
+                continue;
+            }
+
+            let node = self.universal_to_node(universal_node);
+            let search_result = crate::data_store::SearchResult {
+                node,
+                score: final_score,
+                relevance_factors: crate::data_store::RelevanceFactors {
+                    semantic_score: individual_score,
+                    structural_score: contextual_score,
+                    temporal_score: hierarchical_score,
+                    cross_modal_score: None,
                 },
             };
 

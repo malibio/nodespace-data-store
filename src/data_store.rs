@@ -55,7 +55,47 @@ pub trait DataStore {
         limit: usize,
     ) -> NodeSpaceResult<Vec<(Node, f32)>>;
 
-    // NEW: Cross-modal search methods for NS-81
+    // NEW: Multi-level embedding methods for NS-94
+    async fn store_node_with_multi_embeddings(
+        &self,
+        node: Node,
+        embeddings: MultiLevelEmbeddings,
+    ) -> NodeSpaceResult<NodeId>;
+    async fn update_node_embeddings(
+        &self,
+        node_id: &NodeId,
+        embeddings: MultiLevelEmbeddings,
+    ) -> NodeSpaceResult<()>;
+    async fn get_node_embeddings(
+        &self,
+        node_id: &NodeId,
+    ) -> NodeSpaceResult<Option<MultiLevelEmbeddings>>;
+
+    // NEW: Embedding-specific search methods
+    async fn search_by_individual_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>>;
+    async fn search_by_contextual_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>>;
+    async fn search_by_hierarchical_embedding(
+        &self,
+        embedding: Vec<f32>,
+        limit: usize,
+    ) -> NodeSpaceResult<Vec<(Node, f32)>>;
+
+    // NEW: Hybrid search combining multiple levels
+    async fn hybrid_semantic_search(
+        &self,
+        embeddings: QueryEmbeddings,
+        config: HybridSearchConfig,
+    ) -> NodeSpaceResult<Vec<SearchResult>>;
+
+    // Existing cross-modal search methods for NS-81
     async fn create_image_node(&self, image_node: ImageNode) -> NodeSpaceResult<String>;
     async fn get_image_node(&self, id: &str) -> NodeSpaceResult<Option<ImageNode>>;
     async fn search_multimodal(
@@ -103,9 +143,13 @@ pub struct HybridSearchConfig {
     pub semantic_weight: f64,          // 0.0-1.0, semantic similarity
     pub structural_weight: f64,        // 0.0-1.0, relationship proximity
     pub temporal_weight: f64,          // 0.0-1.0, time-based relevance
+    pub individual_weight: f64,        // 0.0-1.0, individual embedding weight
+    pub contextual_weight: f64,        // 0.0-1.0, contextual embedding weight  
+    pub hierarchical_weight: f64,      // 0.0-1.0, hierarchical embedding weight
     pub max_results: usize,            // Maximum results to return
     pub min_similarity_threshold: f64, // Minimum similarity score
     pub enable_cross_modal: bool,      // Allow text→image search
+    pub enable_cross_level_fusion: bool, // Combine scores across embedding levels
     pub search_timeout_ms: u64,        // Maximum search time
 }
 
@@ -122,6 +166,23 @@ pub struct RelevanceFactors {
     pub structural_score: f32,
     pub temporal_score: f32,
     pub cross_modal_score: Option<f32>,
+}
+
+// NEW: Multi-level embedding types for NS-94
+#[derive(Debug, Clone)]
+pub struct MultiLevelEmbeddings {
+    pub individual: Vec<f32>,              // Node content embedding
+    pub contextual: Option<Vec<f32>>,      // Context-aware embedding (with siblings/parent)
+    pub hierarchical: Option<Vec<f32>>,    // Hierarchical path embedding
+    pub embedding_model: Option<String>,   // Model used for generation
+    pub generated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, Clone)]
+pub struct QueryEmbeddings {
+    pub individual: Vec<f32>,
+    pub contextual: Option<Vec<f32>>,
+    pub hierarchical: Option<Vec<f32>>,
 }
 
 #[cfg(feature = "migration")]
