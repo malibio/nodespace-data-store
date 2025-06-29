@@ -263,7 +263,7 @@ impl LanceDataStore {
                     .await
                 {
                     Ok(_) => {}
-                    Err(_e) => {
+                    Err(_) => {
                         // This is not a fatal error - index can be created later when data exists
                     }
                 }
@@ -273,6 +273,8 @@ impl LanceDataStore {
     }
 
     /// Convert NodeSpace Node to UniversalNode with multi-level embeddings support
+    /// For TextNode and DateNode: Empty metadata to eliminate redundant hierarchical data
+    /// For other node types: Preserve metadata for type-specific properties
     fn node_to_universal(&self, node: Node, embedding: Option<Vec<f32>>) -> UniversalNode {
         let now = chrono::Utc::now().to_rfc3339();
 
@@ -287,7 +289,7 @@ impl LanceDataStore {
             "text".to_string()
         };
 
-        // Extract relationships from metadata
+        // Extract relationships from metadata BEFORE potentially clearing it
         let parent_id = node
             .metadata
             .as_ref()
@@ -359,6 +361,19 @@ impl LanceDataStore {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
+        // NS-85: Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
+        // For these node types, hierarchical data should come from parent_id/children_ids fields only
+        let simplified_metadata = match node_type.as_str() {
+            "text" | "date" => {
+                // Empty metadata for text and date nodes - hierarchy handled by parent_id/children_ids
+                None
+            }
+            _ => {
+                // Preserve metadata for other node types (image, task, etc.) for type-specific properties
+                node.metadata
+            }
+        };
+
         UniversalNode {
             id: node.id.to_string(),
             node_type,
@@ -385,7 +400,7 @@ impl LanceDataStore {
             } else {
                 node.updated_at
             },
-            metadata: node.metadata,
+            metadata: simplified_metadata,
         }
     }
 
@@ -440,6 +455,19 @@ impl LanceDataStore {
             })
             .unwrap_or_default();
 
+        // NS-85: Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
+        // For these node types, hierarchical data should come from parent_id/children_ids fields only
+        let simplified_metadata = match node_type.as_str() {
+            "text" | "date" => {
+                // Empty metadata for text and date nodes - hierarchy handled by parent_id/children_ids
+                None
+            }
+            _ => {
+                // Preserve metadata for other node types (image, task, etc.) for type-specific properties
+                node.metadata
+            }
+        };
+
         UniversalNode {
             id: node.id.to_string(),
             node_type,
@@ -466,7 +494,7 @@ impl LanceDataStore {
             } else {
                 node.updated_at
             },
-            metadata: node.metadata,
+            metadata: simplified_metadata,
         }
     }
 
@@ -937,42 +965,62 @@ impl LanceDataStore {
     }
 
     /// Convert UniversalNode back to NodeSpace Node
+    /// NS-85: For TextNode and DateNode, keep metadata empty to maintain simplified approach
+    /// For other node types, preserve their type-specific metadata
     fn universal_to_node(&self, universal: UniversalNode) -> Node {
         let content = serde_json::Value::String(universal.content);
 
-        let mut metadata = universal.metadata.unwrap_or_else(|| serde_json::json!({}));
-
-        // Store additional fields in metadata
-        metadata["node_type"] = serde_json::Value::String(universal.node_type);
-        if let Some(ref parent_id) = universal.parent_id {
-            metadata["parent_id"] = serde_json::Value::String(parent_id.clone());
-        }
-        if !universal.children_ids.is_empty() {
-            metadata["children_ids"] = serde_json::Value::Array(
-                universal
-                    .children_ids
-                    .into_iter()
-                    .map(serde_json::Value::String)
-                    .collect(),
-            );
-        }
-        if !universal.mentions.is_empty() {
-            metadata["mentions"] = serde_json::Value::Array(
-                universal
-                    .mentions
-                    .into_iter()
-                    .map(serde_json::Value::String)
-                    .collect(),
-            );
-        }
+        // NS-85: Determine if this is a simplified node type (text/date) that should have empty metadata
+        let final_metadata = match universal.node_type.as_str() {
+            "text" | "date" => {
+                // For text and date nodes: Keep metadata empty/null as per NS-85
+                // Hierarchical data is maintained in parent_id/children_ids fields in UniversalNode
+                // and will be computed by core-logic layer when needed
+                None
+            }
+            _ => {
+                // For other node types (image, task, etc.): Preserve their metadata
+                // These may have type-specific properties that need to be maintained
+                let mut metadata = universal.metadata.unwrap_or_else(|| serde_json::json!({}));
+                
+                // Only add node_type for non-simplified nodes
+                metadata["node_type"] = serde_json::Value::String(universal.node_type.clone());
+                
+                // For non-simplified nodes, we can still include hierarchical data in metadata
+                // for backwards compatibility, but it should be computed from the canonical source
+                if let Some(parent_id) = &universal.parent_id {
+                    metadata["parent_id"] = serde_json::Value::String(parent_id.clone());
+                }
+                if !universal.children_ids.is_empty() {
+                    metadata["children_ids"] = serde_json::Value::Array(
+                        universal
+                            .children_ids
+                            .iter()
+                            .map(|id| serde_json::Value::String(id.clone()))
+                            .collect(),
+                    );
+                }
+                if !universal.mentions.is_empty() {
+                    metadata["mentions"] = serde_json::Value::Array(
+                        universal
+                            .mentions
+                            .iter()
+                            .map(|id| serde_json::Value::String(id.clone()))
+                            .collect(),
+                    );
+                }
+                
+                Some(metadata)
+            }
+        };
 
         Node {
             id: NodeId::from_string(universal.id),
             content,
-            metadata: Some(metadata),
+            metadata: final_metadata,
             created_at: universal.created_at,
             updated_at: universal.updated_at,
-            parent_id: universal.parent_id.map(|p| NodeId::from_string(p)),
+            parent_id: universal.parent_id.map(NodeId::from_string),
             next_sibling: None,
             previous_sibling: None,
         }
