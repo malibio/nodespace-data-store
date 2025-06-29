@@ -84,6 +84,9 @@ pub enum DataStoreError {
 
     #[error("Embedding error: {0}")]
     EmbeddingError(String),
+
+    #[error("Feature not implemented: {0}")]
+    NotImplemented(String),
 }
 
 impl From<DataStoreError> for NodeSpaceError {
@@ -121,6 +124,7 @@ impl From<DataStoreError> for NodeSpaceError {
             DataStoreError::ImageError(_) => NodeSpaceError::ProcessingError(err.to_string()),
             DataStoreError::CrossModalError(_) => NodeSpaceError::ProcessingError(err.to_string()),
             DataStoreError::EmbeddingError(_) => NodeSpaceError::ProcessingError(err.to_string()),
+            DataStoreError::NotImplemented(_) => NodeSpaceError::InternalError(err.to_string()),
         }
     }
 }

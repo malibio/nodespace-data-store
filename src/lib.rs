@@ -19,8 +19,8 @@ mod schema;
 // Conditional exports based on feature flags
 #[cfg(not(feature = "migration"))]
 pub use data_store::{
-    DataStore, HybridSearchConfig, ImageMetadata, ImageNode, NodeType, RelevanceFactors,
-    SearchResult,
+    DataStore, HybridSearchConfig, ImageMetadata, ImageNode, MultiLevelEmbeddings, NodeType,
+    QueryEmbeddings, RelevanceFactors, SearchResult,
 };
 #[cfg(feature = "migration")]
 pub use data_store::{DataStore, SurrealDataStore};
