@@ -8,14 +8,18 @@ use crate::data_store::DataStore;
 use crate::error::DataStoreError;
 use crate::performance::{OperationType, PerformanceConfig, PerformanceMonitor};
 use crate::schema::lance_schema::{ContentType, ImageMetadata, NodeType};
-use arrow_array::RecordBatch;
+use arrow_array::{Array, RecordBatch, RecordBatchIterator, StringArray, FixedSizeListArray, Float32Array, ListArray};
+use arrow_array::builder::{ListBuilder, StringBuilder};
+use arrow_schema::{DataType, Field, Schema};
 use async_trait::async_trait;
 use chrono::Utc;
-use lancedb::query::QueryBase;
+use lancedb::query::{QueryBase, ExecutableQuery};
 use lancedb::{connect, Connection, Table};
 use nodespace_core_types::{Node, NodeId, NodeSpaceResult};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::sync::Arc;
+use futures;
 
 /// Production LanceDB DataStore implementation with performance monitoring
 pub struct LanceDataStore {
@@ -126,6 +130,55 @@ impl LanceDataStore {
     /// Create with default configuration
     pub async fn with_defaults(db_path: &str) -> Result<Self, DataStoreError> {
         Self::new(db_path, LanceDBConfig::default()).await
+    }
+
+    /// Create the Universal Document Schema for LanceDB
+    fn create_universal_schema(&self) -> Arc<Schema> {
+        Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Utf8, false),
+            Field::new("node_type", DataType::Utf8, false),
+            Field::new("content", DataType::Utf8, false),
+            Field::new("content_type", DataType::Utf8, false),
+            Field::new("content_size_bytes", DataType::Utf8, true), // Nullable string
+            Field::new("metadata", DataType::Utf8, true), // Nullable JSON string
+            // Vector field - FixedSizeList of Float32 for LanceDB vector indexing
+            Field::new(
+                "vector",
+                DataType::FixedSizeList(
+                    Arc::new(Field::new("item", DataType::Float32, false)),
+                    self.config.vector_dimensions as i32,
+                ),
+                true, // Nullable for when no embedding exists
+            ),
+            Field::new("vector_model", DataType::Utf8, true), // Nullable
+            Field::new("vector_dimensions", DataType::Utf8, true), // Nullable string
+            Field::new("parent_id", DataType::Utf8, true), // Nullable
+            // Children IDs - List of String
+            Field::new(
+                "children_ids",
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+                true,
+            ),
+            // Mentions - List of String
+            Field::new(
+                "mentions",
+                DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
+                true,
+            ),
+            Field::new("next_sibling", DataType::Utf8, true), // Nullable
+            Field::new("previous_sibling", DataType::Utf8, true), // Nullable
+            Field::new("created_at", DataType::Utf8, false),
+            Field::new("updated_at", DataType::Utf8, false),
+            // Image-specific fields
+            Field::new("image_alt_text", DataType::Utf8, true), // Nullable
+            Field::new("image_width", DataType::Utf8, true), // Nullable string
+            Field::new("image_height", DataType::Utf8, true), // Nullable string
+            Field::new("image_format", DataType::Utf8, true), // Nullable
+            // Performance fields
+            Field::new("search_priority", DataType::Utf8, true), // Nullable string
+            Field::new("last_accessed", DataType::Utf8, true), // Nullable
+            Field::new("extended_properties", DataType::Utf8, true), // Nullable JSON string
+        ]))
     }
 
     /// Initialize the universal document table with proper schema
@@ -285,37 +338,355 @@ impl LanceDataStore {
     }
 
     /// Insert a document into LanceDB
-    async fn insert_document(&self, _document: &UniversalDocument) -> Result<(), DataStoreError> {
-        // TODO: Implement actual LanceDB insertion
-        // For now, this is a placeholder that always succeeds
-        // In a real implementation, this would:
-        // 1. Convert UniversalDocument to Arrow RecordBatch
-        // 2. Insert into LanceDB table
-        // 3. Handle errors appropriately
+    async fn insert_document(&self, document: &UniversalDocument) -> Result<(), DataStoreError> {
+        // Convert UniversalDocument to Arrow RecordBatch
+        let batch = self.document_to_record_batch(document)?;
+
+        // Get table reference
+        let table = self
+            .table
+            .as_ref()
+            .ok_or_else(|| DataStoreError::LanceDBTable("Table not initialized".to_string()))?;
+
+        // Create RecordBatchIterator for LanceDB
+        let schema = batch.schema();
+        let batches = RecordBatchIterator::new(vec![batch].into_iter().map(Ok), schema);
+
+        // Insert into LanceDB table
+        table.add(Box::new(batches)).execute().await.map_err(|e| {
+            DataStoreError::LanceDB(format!("Failed to add data to table: {}", e))
+        })?;
+
+        // Force filesystem sync for persistence
+        let _ = table.count_rows(None).await;
+
+        // Give LanceDB time to complete disk writes
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
         Ok(())
     }
 
     /// Convert UniversalDocument to Arrow RecordBatch
-    #[allow(dead_code)]
     fn document_to_record_batch(
         &self,
-        _document: &UniversalDocument,
+        document: &UniversalDocument,
     ) -> Result<RecordBatch, DataStoreError> {
-        // TODO: Implement proper Arrow conversion with all schema fields
-        Err(DataStoreError::ArrowConversion(
-            "Document to RecordBatch conversion not implemented".to_string(),
-        ))
+        let schema = self.create_universal_schema();
+        
+        // Create single-row arrays from document
+        let ids = vec![document.id.clone()];
+        let node_types = vec![document.node_type.clone()];
+        let contents = vec![document.content.clone()];
+        let content_types = vec![document.content_type.clone()];
+        let created_ats = vec![document.created_at.clone()];
+        let updated_ats = vec![document.updated_at.clone()];
+        
+        // Handle optional fields
+        let content_size_bytes = vec![document.content_size_bytes];
+        let metadatas = vec![document.metadata.clone()];
+        let parent_ids = vec![document.parent_id.clone()];
+        let vector_models = vec![document.vector_model.clone()];
+        let vector_dimensions = vec![document.vector_dimensions];
+        let next_siblings = vec![document.next_sibling.clone()];
+        let previous_siblings = vec![document.previous_sibling.clone()];
+        let image_alt_texts = vec![document.image_alt_text.clone()];
+        let image_widths = vec![document.image_width];
+        let image_heights = vec![document.image_height];
+        let image_formats = vec![document.image_format.clone()];
+        let search_priorities = vec![document.search_priority];
+        let last_accessed = vec![document.last_accessed.clone()];
+        let extended_properties = vec![document.extended_properties.clone()];
+
+        // Vector field: Convert to FixedSizeListArray
+        let vector_array = if let Some(ref vector) = document.vector {
+            if vector.len() != self.config.vector_dimensions {
+                return Err(DataStoreError::Arrow(format!(
+                    "Vector dimension mismatch: expected {}, got {}",
+                    self.config.vector_dimensions,
+                    vector.len()
+                )));
+            }
+            let values = Float32Array::from(vector.clone());
+            let field = Arc::new(Field::new("item", DataType::Float32, false));
+            FixedSizeListArray::try_new(
+                field,
+                self.config.vector_dimensions as i32,
+                Arc::new(values),
+                None,
+            )
+            .map_err(|e| {
+                DataStoreError::Arrow(format!("Failed to create vector FixedSizeListArray: {}", e))
+            })?
+        } else {
+            // Create null vector array
+            let empty_values = Float32Array::from(vec![0.0; self.config.vector_dimensions]);
+            let field = Arc::new(Field::new("item", DataType::Float32, false));
+            FixedSizeListArray::try_new(
+                field,
+                self.config.vector_dimensions as i32,
+                Arc::new(empty_values),
+                None,
+            )
+            .map_err(|e| {
+                DataStoreError::Arrow(format!("Failed to create empty vector FixedSizeListArray: {}", e))
+            })?
+        };
+
+        // Children IDs: Convert to ListArray
+        let mut children_builder = ListBuilder::new(StringBuilder::new());
+        for child_id in &document.children_ids {
+            children_builder.values().append_value(child_id);
+        }
+        children_builder.append(true);
+        let children_ids_array = children_builder.finish();
+
+        // Mentions: Convert to ListArray
+        let mut mentions_builder = ListBuilder::new(StringBuilder::new());
+        for mention in &document.mentions {
+            mentions_builder.values().append_value(mention);
+        }
+        mentions_builder.append(true);
+        let mentions_array = mentions_builder.finish();
+
+        // Create RecordBatch
+        let batch = RecordBatch::try_new(
+            schema,
+            vec![
+                Arc::new(StringArray::from(ids)),
+                Arc::new(StringArray::from(node_types)),
+                Arc::new(StringArray::from(contents)),
+                Arc::new(StringArray::from(content_types)),
+                Arc::new(StringArray::from(content_size_bytes.into_iter().map(|x| x.map(|v| v.to_string())).collect::<Vec<Option<String>>>())),
+                Arc::new(StringArray::from(metadatas)),
+                Arc::new(vector_array),
+                Arc::new(StringArray::from(vector_models)),
+                Arc::new(StringArray::from(vector_dimensions.into_iter().map(|x| x.map(|v| v.to_string())).collect::<Vec<Option<String>>>())),
+                Arc::new(StringArray::from(parent_ids)),
+                Arc::new(children_ids_array),
+                Arc::new(mentions_array),
+                Arc::new(StringArray::from(next_siblings)),
+                Arc::new(StringArray::from(previous_siblings)),
+                Arc::new(StringArray::from(created_ats)),
+                Arc::new(StringArray::from(updated_ats)),
+                Arc::new(StringArray::from(image_alt_texts)),
+                Arc::new(StringArray::from(image_widths.into_iter().map(|x| x.map(|v| v.to_string())).collect::<Vec<Option<String>>>())),
+                Arc::new(StringArray::from(image_heights.into_iter().map(|x| x.map(|v| v.to_string())).collect::<Vec<Option<String>>>())),
+                Arc::new(StringArray::from(image_formats)),
+                Arc::new(StringArray::from(search_priorities.into_iter().map(|x| x.map(|v| v.to_string())).collect::<Vec<Option<String>>>())),
+                Arc::new(StringArray::from(last_accessed)),
+                Arc::new(StringArray::from(extended_properties)),
+            ],
+        )
+        .map_err(|e| DataStoreError::Arrow(format!("Failed to create RecordBatch: {}", e)))?;
+
+        Ok(batch)
     }
 
     /// Convert Arrow RecordBatch to UniversalDocuments
-    #[allow(dead_code)]
     fn record_batch_to_documents(
         &self,
-        _batch: &RecordBatch,
+        batch: &RecordBatch,
     ) -> Result<Vec<UniversalDocument>, DataStoreError> {
-        // Implementation would extract data from Arrow arrays and construct UniversalDocument structs
-        // This is a simplified placeholder
-        Ok(vec![])
+        let mut documents = Vec::new();
+        let num_rows = batch.num_rows();
+
+        if num_rows == 0 {
+            return Ok(documents);
+        }
+
+        // Extract column arrays
+        let ids = batch
+            .column_by_name("id")
+            .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| DataStoreError::Arrow("Missing or invalid id column".to_string()))?;
+
+        let node_types = batch
+            .column_by_name("node_type")
+            .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| DataStoreError::Arrow("Missing or invalid node_type column".to_string()))?;
+
+        let contents = batch
+            .column_by_name("content")
+            .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| DataStoreError::Arrow("Missing or invalid content column".to_string()))?;
+
+        let content_types = batch
+            .column_by_name("content_type")
+            .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| DataStoreError::Arrow("Missing or invalid content_type column".to_string()))?;
+
+        let created_ats = batch
+            .column_by_name("created_at")
+            .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| DataStoreError::Arrow("Missing or invalid created_at column".to_string()))?;
+
+        let updated_ats = batch
+            .column_by_name("updated_at")
+            .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+            .ok_or_else(|| DataStoreError::Arrow("Missing or invalid updated_at column".to_string()))?;
+
+        // Extract vector FixedSizeListArray
+        let vector_list_array = batch
+            .column_by_name("vector")
+            .and_then(|col| col.as_any().downcast_ref::<FixedSizeListArray>());
+
+        // Extract children_ids ListArray
+        let children_list_array = batch
+            .column_by_name("children_ids")
+            .and_then(|col| col.as_any().downcast_ref::<ListArray>());
+
+        // Extract mentions ListArray
+        let mentions_list_array = batch
+            .column_by_name("mentions")
+            .and_then(|col| col.as_any().downcast_ref::<ListArray>());
+
+        for i in 0..num_rows {
+            let id = ids.value(i).to_string();
+            let node_type = node_types.value(i).to_string();
+            let content = contents.value(i).to_string();
+            let content_type = content_types.value(i).to_string();
+            let created_at = created_ats.value(i).to_string();
+            let updated_at = updated_ats.value(i).to_string();
+
+            // Extract optional string fields
+            let content_size_bytes = batch
+                .column_by_name("content_size_bytes")
+                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+                .and_then(|arr| {
+                    if arr.is_null(i) {
+                        None
+                    } else {
+                        arr.value(i).parse::<u64>().ok()
+                    }
+                });
+
+            let metadata = batch
+                .column_by_name("metadata")
+                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+                .and_then(|arr| {
+                    if arr.is_null(i) {
+                        None
+                    } else {
+                        Some(arr.value(i).to_string())
+                    }
+                });
+
+            let parent_id = batch
+                .column_by_name("parent_id")
+                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+                .and_then(|arr| {
+                    if arr.is_null(i) {
+                        None
+                    } else {
+                        Some(arr.value(i).to_string())
+                    }
+                });
+
+            // Extract vector embedding from FixedSizeListArray
+            let vector = if let Some(vector_list_array) = vector_list_array {
+                if !vector_list_array.is_null(i) {
+                    let vector_list = vector_list_array.value(i);
+                    if let Some(float_array) = vector_list.as_any().downcast_ref::<Float32Array>() {
+                        Some((0..float_array.len()).map(|j| float_array.value(j)).collect())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            // Extract children_ids from ListArray
+            let children_ids = if let Some(children_list_array) = children_list_array {
+                if !children_list_array.is_null(i) {
+                    let children_list = children_list_array.value(i);
+                    if let Some(string_array) = children_list.as_any().downcast_ref::<StringArray>() {
+                        (0..string_array.len())
+                            .map(|j| string_array.value(j).to_string())
+                            .collect()
+                    } else {
+                        vec![]
+                    }
+                } else {
+                    vec![]
+                }
+            } else {
+                vec![]
+            };
+
+            // Extract mentions from ListArray
+            let mentions = if let Some(mentions_list_array) = mentions_list_array {
+                if !mentions_list_array.is_null(i) {
+                    let mentions_list = mentions_list_array.value(i);
+                    if let Some(string_array) = mentions_list.as_any().downcast_ref::<StringArray>() {
+                        (0..string_array.len())
+                            .map(|j| string_array.value(j).to_string())
+                            .collect()
+                    } else {
+                        vec![]
+                    }
+                } else {
+                    vec![]
+                }
+            } else {
+                vec![]
+            };
+
+            // Extract other optional fields
+            let vector_model = batch
+                .column_by_name("vector_model")
+                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+                .and_then(|arr| {
+                    if arr.is_null(i) {
+                        None
+                    } else {
+                        Some(arr.value(i).to_string())
+                    }
+                });
+
+            let vector_dimensions = batch
+                .column_by_name("vector_dimensions")
+                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+                .and_then(|arr| {
+                    if arr.is_null(i) {
+                        None
+                    } else {
+                        arr.value(i).parse::<u32>().ok()
+                    }
+                });
+
+            let document = UniversalDocument {
+                id,
+                node_type,
+                content,
+                content_type,
+                content_size_bytes,
+                metadata,
+                vector,
+                vector_model,
+                vector_dimensions,
+                parent_id,
+                children_ids,
+                mentions,
+                next_sibling: None, // TODO: Extract if needed
+                previous_sibling: None, // TODO: Extract if needed
+                created_at,
+                updated_at,
+                image_alt_text: None, // TODO: Extract if needed
+                image_width: None, // TODO: Extract if needed
+                image_height: None, // TODO: Extract if needed
+                image_format: None, // TODO: Extract if needed
+                search_priority: None, // TODO: Extract if needed
+                last_accessed: None, // TODO: Extract if needed
+                extended_properties: None, // TODO: Extract if needed
+            };
+
+            documents.push(document);
+        }
+
+        Ok(documents)
     }
 
     /// Convert UniversalDocument to Node
@@ -416,10 +787,47 @@ impl DataStore for LanceDataStore {
             .start_operation(OperationType::GetNode)
             .with_metadata("node_id".to_string(), id.to_string());
 
-        // TODO: Implement LanceDB query by ID
-        // For now, return None as placeholder
+        let table = self
+            .table
+            .as_ref()
+            .ok_or_else(|| DataStoreError::LanceDBTable("Table not initialized".to_string()))?;
+
+        let target_id = id.to_string();
+
+        // Use LanceDB query with reasonable limit and filter in application
+        let results_stream = table
+            .query()
+            .limit(1000) // Reasonable limit to avoid loading entire table
+            .execute()
+            .await
+            .map_err(|e| DataStoreError::LanceDB(format!("Query by ID failed: {}", e)))?;
+
+        // Collect the results into Vec<RecordBatch>
+        let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results_stream)
+            .await
+            .map_err(|e| {
+                DataStoreError::LanceDB(format!("Failed to collect query results: {}", e))
+            })?;
+
+        // Process the retrieved batches and find matching ID
+        for batch in batches.iter() {
+            if batch.num_rows() > 0 {
+                let documents = self.record_batch_to_documents(batch)?;
+
+                // Find the document with matching ID
+                for document in documents {
+                    if document.id == target_id {
+                        // Found matching document - convert to Node
+                        let node = self.document_to_node(&document)?;
+                        timer.complete_success();
+                        return Ok(Some(node));
+                    }
+                }
+            }
+        }
+
         timer.complete_success();
-        Ok(None)
+        Ok(None) // No matching node found
     }
 
     async fn update_node(&self, node: Node) -> NodeSpaceResult<()> {
@@ -429,11 +837,36 @@ impl DataStore for LanceDataStore {
             .with_metadata("node_id".to_string(), node.id.to_string())
             .with_metadata("operation".to_string(), "update".to_string());
 
-        // TODO: Implement proper LanceDB update operation
-        // For now, treat as store operation
-        let _result = self.store_node(node).await;
-        timer.complete_success();
-        Ok(())
+        // Verify the node exists first
+        if self.get_node(&node.id).await?.is_none() {
+            let error_msg = format!("Node {} not found for update", node.id);
+            timer.complete_error(error_msg.clone());
+            return Err(DataStoreError::NodeNotFound(error_msg).into());
+        }
+
+        // Update the node's updated_at timestamp
+        let mut updated_node = node;
+        updated_node.updated_at = chrono::Utc::now().to_rfc3339();
+
+        // Use atomic delete + insert for update (same pattern as Simple implementation)
+        match self.delete_node(&updated_node.id).await {
+            Ok(_) => {
+                match self.store_node(updated_node).await {
+                    Ok(_) => {
+                        timer.complete_success();
+                        Ok(())
+                    }
+                    Err(e) => {
+                        timer.complete_error(e.to_string());
+                        Err(e)
+                    }
+                }
+            }
+            Err(e) => {
+                timer.complete_error(e.to_string());
+                Err(e)
+            }
+        }
     }
 
     async fn update_node_with_embedding(
@@ -447,11 +880,36 @@ impl DataStore for LanceDataStore {
             .with_metadata("node_id".to_string(), node.id.to_string())
             .with_metadata("operation".to_string(), "update_with_embedding".to_string());
 
-        // TODO: Implement proper LanceDB update operation with embedding
-        // For now, use store_node_with_embedding
-        let _result = self.store_node_with_embedding(node, embedding).await;
-        timer.complete_success();
-        Ok(())
+        // Verify the node exists first
+        if self.get_node(&node.id).await?.is_none() {
+            let error_msg = format!("Node {} not found for update", node.id);
+            timer.complete_error(error_msg.clone());
+            return Err(DataStoreError::NodeNotFound(error_msg).into());
+        }
+
+        // Update the node's updated_at timestamp
+        let mut updated_node = node;
+        updated_node.updated_at = chrono::Utc::now().to_rfc3339();
+
+        // Use atomic delete + insert for update with embedding
+        match self.delete_node(&updated_node.id).await {
+            Ok(_) => {
+                match self.store_node_with_embedding(updated_node, embedding).await {
+                    Ok(_) => {
+                        timer.complete_success();
+                        Ok(())
+                    }
+                    Err(e) => {
+                        timer.complete_error(e.to_string());
+                        Err(e)
+                    }
+                }
+            }
+            Err(e) => {
+                timer.complete_error(e.to_string());
+                Err(e)
+            }
+        }
     }
 
     async fn delete_node(&self, id: &NodeId) -> NodeSpaceResult<()> {
@@ -460,9 +918,25 @@ impl DataStore for LanceDataStore {
             .start_operation(OperationType::DeleteNode)
             .with_metadata("node_id".to_string(), id.to_string());
 
-        // TODO: Implement LanceDB deletion
-        timer.complete_success();
-        Ok(())
+        let table = self
+            .table
+            .as_ref()
+            .ok_or_else(|| DataStoreError::LanceDBTable("Table not initialized".to_string()))?;
+
+        // Use native LanceDB delete operation with SQL predicate
+        let predicate = format!("id = '{}'", id.as_str().replace("'", "''"));
+        
+        match table.delete(&predicate).await {
+            Ok(_) => {
+                timer.complete_success();
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = format!("Delete operation failed: {}", e);
+                timer.complete_error(error_msg.clone());
+                Err(DataStoreError::LanceDB(error_msg).into())
+            }
+        }
     }
 
     async fn query_nodes(&self, query: &str) -> NodeSpaceResult<Vec<Node>> {
@@ -471,9 +945,48 @@ impl DataStore for LanceDataStore {
             .start_operation(OperationType::QueryNodes)
             .with_metadata("query".to_string(), query.to_string());
 
-        // TODO: Implement LanceDB SQL-like queries
+        let table = self
+            .table
+            .as_ref()
+            .ok_or_else(|| DataStoreError::LanceDBTable("Table not initialized".to_string()))?;
+
+        // Use LanceDB query with limit to avoid loading all data
+        let results_stream = table
+            .query()
+            .limit(1000) // Reasonable limit to avoid memory issues
+            .execute()
+            .await
+            .map_err(|e| DataStoreError::LanceDB(format!("Query failed: {}", e)))?;
+
+        let batches: Vec<RecordBatch> = futures::TryStreamExt::try_collect(results_stream)
+            .await
+            .map_err(|e| {
+                DataStoreError::LanceDB(format!("Failed to collect results: {}", e))
+            })?;
+
+        let mut nodes = Vec::new();
+        for batch in batches {
+            let documents = self.record_batch_to_documents(&batch)?;
+
+            if query.is_empty() {
+                // Return all documents if no query filter
+                for document in documents {
+                    let node = self.document_to_node(&document)?;
+                    nodes.push(node);
+                }
+            } else {
+                // Apply content filter efficiently
+                for document in documents {
+                    if document.content.to_lowercase().contains(&query.to_lowercase()) {
+                        let node = self.document_to_node(&document)?;
+                        nodes.push(node);
+                    }
+                }
+            }
+        }
+
         timer.complete_success();
-        Ok(vec![])
+        Ok(nodes)
     }
 
     async fn create_relationship(

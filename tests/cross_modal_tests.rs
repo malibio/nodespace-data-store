@@ -254,9 +254,13 @@ async fn test_hybrid_search_configuration() -> Result<(), Box<dyn Error>> {
         semantic_weight: 0.7,
         structural_weight: 0.2,
         temporal_weight: 0.1,
+        individual_weight: 0.4,
+        contextual_weight: 0.3,
+        hierarchical_weight: 0.3,
         max_results: 10,
         min_similarity_threshold: 0.1,
         enable_cross_modal: true,
+        enable_cross_level_fusion: true,
         search_timeout_ms: 1000,
     };
 
@@ -298,9 +302,13 @@ async fn test_performance_requirements() -> Result<(), Box<dyn Error>> {
         semantic_weight: 0.6,
         structural_weight: 0.2,
         temporal_weight: 0.2,
+        individual_weight: 0.4,
+        contextual_weight: 0.3,
+        hierarchical_weight: 0.3,
         max_results: 100,
         min_similarity_threshold: 0.0,
         enable_cross_modal: true,
+        enable_cross_level_fusion: true,
         search_timeout_ms: 2000,
     };
 
