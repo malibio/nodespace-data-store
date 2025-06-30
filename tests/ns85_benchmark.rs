@@ -31,12 +31,12 @@ async fn benchmark_ns85_simplified_storage() -> Result<(), Box<dyn std::error::E
     for node in &test_nodes {
         let retrieved = data_store.get_node(&node.id).await?;
         assert!(retrieved.is_some());
-        
+
         // Verify simplified metadata (should be None or empty)
         let retrieved_node = retrieved.unwrap();
         assert!(
-            retrieved_node.metadata.is_none() 
-            || retrieved_node.metadata == Some(serde_json::json!({}))
+            retrieved_node.metadata.is_none()
+                || retrieved_node.metadata == Some(serde_json::json!({}))
         );
     }
     let retrieval_duration = retrieval_start.elapsed();
@@ -46,12 +46,28 @@ async fn benchmark_ns85_simplified_storage() -> Result<(), Box<dyn std::error::E
     let retrieval_per_node = retrieval_duration.as_millis() / test_nodes.len() as u128;
 
     println!("🚀 NS-85 Performance Benchmark Results:");
-    println!("   Storage: {}ms total, {}ms per node", storage_duration.as_millis(), storage_per_node);
-    println!("   Retrieval: {}ms total, {}ms per node", retrieval_duration.as_millis(), retrieval_per_node);
+    println!(
+        "   Storage: {}ms total, {}ms per node",
+        storage_duration.as_millis(),
+        storage_per_node
+    );
+    println!(
+        "   Retrieval: {}ms total, {}ms per node",
+        retrieval_duration.as_millis(),
+        retrieval_per_node
+    );
 
     // Assert performance targets (generous for debug mode)
-    assert!(storage_per_node < 200, "Storage should be < 200ms per node in debug mode, got {}ms", storage_per_node);
-    assert!(retrieval_per_node < 50, "Retrieval should be < 50ms per node, got {}ms", retrieval_per_node);
+    assert!(
+        storage_per_node < 200,
+        "Storage should be < 200ms per node in debug mode, got {}ms",
+        storage_per_node
+    );
+    assert!(
+        retrieval_per_node < 50,
+        "Retrieval should be < 50ms per node, got {}ms",
+        retrieval_per_node
+    );
 
     println!("✅ NS-85: All performance targets met!");
     println!("✅ NS-85: Metadata simplification successful!");
@@ -59,7 +75,7 @@ async fn benchmark_ns85_simplified_storage() -> Result<(), Box<dyn std::error::E
     Ok(())
 }
 
-#[tokio::test] 
+#[tokio::test]
 async fn benchmark_ns85_memory_efficiency() -> Result<(), Box<dyn std::error::Error>> {
     let data_store = LanceDataStore::new("data/benchmark_memory_ns85.db").await?;
 
@@ -95,16 +111,28 @@ async fn benchmark_ns85_memory_efficiency() -> Result<(), Box<dyn std::error::Er
     let retrieved_image = data_store.get_node(&image_id).await?.unwrap();
 
     // Verify simplified metadata behavior
-    assert!(retrieved_text.metadata.is_none() || retrieved_text.metadata == Some(serde_json::json!({})));
+    assert!(
+        retrieved_text.metadata.is_none() || retrieved_text.metadata == Some(serde_json::json!({}))
+    );
     assert!(retrieved_image.metadata.is_some());
 
     println!("📊 NS-85 Memory Efficiency Results:");
-    println!("   TextNode (simplified): {}μs storage", text_storage_time.as_micros());
-    println!("   ImageNode (full metadata): {}μs storage", image_storage_time.as_micros());
-    
+    println!(
+        "   TextNode (simplified): {}μs storage",
+        text_storage_time.as_micros()
+    );
+    println!(
+        "   ImageNode (full metadata): {}μs storage",
+        image_storage_time.as_micros()
+    );
+
     // TextNode should be faster due to less metadata processing
-    let efficiency_ratio = image_storage_time.as_nanos() as f64 / text_storage_time.as_nanos() as f64;
-    println!("   Efficiency ratio: {:.2}x (TextNode vs ImageNode)", efficiency_ratio);
+    let efficiency_ratio =
+        image_storage_time.as_nanos() as f64 / text_storage_time.as_nanos() as f64;
+    println!(
+        "   Efficiency ratio: {:.2}x (TextNode vs ImageNode)",
+        efficiency_ratio
+    );
 
     println!("✅ NS-85: Memory efficiency validated!");
 

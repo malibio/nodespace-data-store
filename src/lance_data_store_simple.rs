@@ -38,12 +38,12 @@ pub struct UniversalNode {
     pub id: String,
     pub node_type: String, // "text", "date", "task", "customer", "project", etc.
     pub content: String,
-    
+
     // Multi-level embeddings for NS-94
-    pub individual_vector: Vec<f32>,            // Individual content embedding (384-dim)
-    pub contextual_vector: Option<Vec<f32>>,    // Context-aware embedding (384-dim)
-    pub hierarchical_vector: Option<Vec<f32>>,  // Hierarchical path embedding (384-dim)
-    pub embedding_model: Option<String>,        // Model used for generation
+    pub individual_vector: Vec<f32>, // Individual content embedding (384-dim)
+    pub contextual_vector: Option<Vec<f32>>, // Context-aware embedding (384-dim)
+    pub hierarchical_vector: Option<Vec<f32>>, // Hierarchical path embedding (384-dim)
+    pub embedding_model: Option<String>, // Model used for generation
     pub embeddings_generated_at: Option<String>, // Timestamp for embedding generation
 
     // Backward compatibility - maps to individual_vector
@@ -144,7 +144,6 @@ impl LanceDataStore {
             Field::new("id", DataType::Utf8, false),
             Field::new("node_type", DataType::Utf8, false),
             Field::new("content", DataType::Utf8, false),
-            
             // Multi-level embedding vectors for NS-94
             Field::new(
                 "individual_vector",
@@ -172,7 +171,6 @@ impl LanceDataStore {
             ),
             Field::new("embedding_model", DataType::Utf8, true), // Nullable
             Field::new("embeddings_generated_at", DataType::Utf8, true), // Nullable
-            
             // Backward compatibility vector field - FixedSizeList of Float32 for LanceDB vector indexing
             Field::new(
                 "vector",
@@ -324,7 +322,7 @@ impl LanceDataStore {
         // Extract multi-level embeddings from metadata if available
         let default_vector = vec![0.0; self.vector_dimension];
         let individual_vector = embedding.clone().unwrap_or_else(|| default_vector.clone());
-        
+
         let contextual_vector = node
             .metadata
             .as_ref()
@@ -982,10 +980,10 @@ impl LanceDataStore {
                 // For other node types (image, task, etc.): Preserve their metadata
                 // These may have type-specific properties that need to be maintained
                 let mut metadata = universal.metadata.unwrap_or_else(|| serde_json::json!({}));
-                
+
                 // Only add node_type for non-simplified nodes
                 metadata["node_type"] = serde_json::Value::String(universal.node_type.clone());
-                
+
                 // For non-simplified nodes, we can still include hierarchical data in metadata
                 // for backwards compatibility, but it should be computed from the canonical source
                 if let Some(parent_id) = &universal.parent_id {
@@ -1009,7 +1007,7 @@ impl LanceDataStore {
                             .collect(),
                     );
                 }
-                
+
                 Some(metadata)
             }
         };
@@ -1544,7 +1542,9 @@ impl DataStore for LanceDataStore {
                     contextual: universal_node.contextual_vector,
                     hierarchical: universal_node.hierarchical_vector,
                     embedding_model: universal_node.embedding_model,
-                    generated_at: if let Some(timestamp_str) = universal_node.embeddings_generated_at {
+                    generated_at: if let Some(timestamp_str) =
+                        universal_node.embeddings_generated_at
+                    {
                         chrono::DateTime::parse_from_rfc3339(&timestamp_str)
                             .map(|dt| dt.with_timezone(&chrono::Utc))
                             .unwrap_or_else(|_| chrono::Utc::now())
@@ -1639,23 +1639,28 @@ impl DataStore for LanceDataStore {
 
         for universal_node in universal_nodes {
             // Calculate individual embedding similarity
-            let individual_score = cosine_similarity(&embeddings.individual, &universal_node.individual_vector);
-            
+            let individual_score =
+                cosine_similarity(&embeddings.individual, &universal_node.individual_vector);
+
             // Calculate contextual embedding similarity if available
-            let contextual_score = if let (Some(ref query_contextual), Some(ref node_contextual)) = 
-                (&embeddings.contextual, &universal_node.contextual_vector) {
+            let contextual_score = if let (Some(ref query_contextual), Some(ref node_contextual)) =
+                (&embeddings.contextual, &universal_node.contextual_vector)
+            {
                 cosine_similarity(query_contextual, node_contextual)
             } else {
                 0.0
             };
 
-            // Calculate hierarchical embedding similarity if available  
-            let hierarchical_score = if let (Some(ref query_hierarchical), Some(ref node_hierarchical)) = 
-                (&embeddings.hierarchical, &universal_node.hierarchical_vector) {
-                cosine_similarity(query_hierarchical, node_hierarchical)
-            } else {
-                0.0
-            };
+            // Calculate hierarchical embedding similarity if available
+            let hierarchical_score =
+                if let (Some(ref query_hierarchical), Some(ref node_hierarchical)) = (
+                    &embeddings.hierarchical,
+                    &universal_node.hierarchical_vector,
+                ) {
+                    cosine_similarity(query_hierarchical, node_hierarchical)
+                } else {
+                    0.0
+                };
 
             // Calculate weighted final score
             let final_score = (individual_score * config.individual_weight as f32)
