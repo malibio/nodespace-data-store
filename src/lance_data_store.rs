@@ -356,15 +356,29 @@ impl DataStore for LanceDataStore {
             .start_operation(OperationType::CreateNode)
             .with_metadata("node_id".to_string(), node.id.to_string());
 
+        // NS-85: Infer node type and apply metadata simplification
+        let inferred_node_type = if let Some(ref metadata) = node.metadata {
+            metadata.get("node_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("text")
+                .to_string()
+        } else {
+            "text".to_string()
+        };
+        
+        // NS-85: Simplify metadata for text and date nodes
+        let simplified_metadata = match inferred_node_type.as_str() {
+            "text" | "date" => None, // Empty metadata for simplified nodes
+            _ => node.metadata.map(|m| serde_json::to_string(&m).unwrap_or_default()),
+        };
+
         let document = UniversalDocument {
             id: node.id.to_string(),
-            node_type: NodeType::Text.to_string(), // Default to text
+            node_type: inferred_node_type,
             content: node.content.to_string(),
             content_type: ContentType::TextPlain.to_string(),
             content_size_bytes: None,
-            metadata: node
-                .metadata
-                .map(|m| serde_json::to_string(&m).unwrap_or_default()),
+            metadata: simplified_metadata,
             vector: None, // Set by embedding service
             vector_model: None,
             vector_dimensions: None,
@@ -491,15 +505,28 @@ impl DataStore for LanceDataStore {
             .with_metadata("node_id".to_string(), node.id.to_string())
             .with_metadata("has_embedding".to_string(), "true".to_string());
 
+        // NS-85: Apply same metadata simplification logic as store_node
+        let inferred_node_type = if let Some(ref metadata) = node.metadata {
+            metadata.get("node_type")
+                .and_then(|v| v.as_str())
+                .unwrap_or("text")
+                .to_string()
+        } else {
+            "text".to_string()
+        };
+        
+        let simplified_metadata = match inferred_node_type.as_str() {
+            "text" | "date" => None, // Empty metadata for simplified nodes
+            _ => node.metadata.map(|m| serde_json::to_string(&m).unwrap_or_default()),
+        };
+
         let document = UniversalDocument {
             id: node.id.to_string(),
-            node_type: NodeType::Text.to_string(),
+            node_type: inferred_node_type,
             content: node.content.to_string(),
             content_type: ContentType::TextPlain.to_string(),
             content_size_bytes: None,
-            metadata: node
-                .metadata
-                .map(|m| serde_json::to_string(&m).unwrap_or_default()),
+            metadata: simplified_metadata,
             vector: Some(embedding),
             vector_model: Some("bge-small-en-v1.5".to_string()),
             vector_dimensions: None,
@@ -572,9 +599,10 @@ impl DataStore for LanceDataStore {
         _image_node: crate::data_store::ImageNode,
     ) -> NodeSpaceResult<String> {
         // TODO: Implement image node creation for full LanceDB
-        Err(nodespace_core_types::NodeSpaceError::DatabaseError(
-            "create_image_node not implemented for LanceDataStore".to_string(),
-        ))
+        Err(nodespace_core_types::NodeSpaceError::InternalError {
+            message: "create_image_node not implemented for LanceDataStore".to_string(),
+            service: "data-store".to_string(),
+        })
     }
 
     async fn get_image_node(
@@ -678,11 +706,10 @@ mod base64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tokio_test;
 
     #[tokio::test]
     async fn test_lance_datastore_creation() {
-        let config = LanceDBConfig::default();
+        let _config = LanceDBConfig::default();
         // Test would require actual LanceDB setup
         // let datastore = LanceDataStore::new("memory://test", config).await;
         // assert!(datastore.is_ok());

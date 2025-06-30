@@ -13,13 +13,10 @@ async fn test_basic_datastore_operations() -> Result<(), Box<dyn Error>> {
     let data_store = LanceDataStore::new("data/test_basic.db").await?;
 
     // Test basic node storage and retrieval
+    // NS-85: TextNode should have empty metadata - hierarchical data handled by parent_id/children_ids fields
     let test_node = Node::new(serde_json::Value::String(
         "Test content for basic operations".to_string(),
-    ))
-    .with_metadata(serde_json::json!({
-        "test": true,
-        "node_type": "text"
-    }));
+    ));
 
     let node_id = data_store.store_node(test_node.clone()).await?;
 
@@ -31,11 +28,66 @@ async fn test_basic_datastore_operations() -> Result<(), Box<dyn Error>> {
     // Content is stored as JSON Value, verify it contains our test string
     let retrieved_content = retrieved_node.content.as_str().unwrap();
     assert!(retrieved_content.contains("Test content for basic operations"));
+    
+    // NS-85: Verify TextNode metadata is empty (simplified approach)
+    assert!(retrieved_node.metadata.is_none() || retrieved_node.metadata == Some(serde_json::json!({})));
 
     // Test deletion
     data_store.delete_node(&node_id).await?;
     let deleted_check = data_store.get_node(&node_id).await?;
     assert!(deleted_check.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_ns85_simplified_metadata() -> Result<(), Box<dyn Error>> {
+    let data_store = LanceDataStore::new("data/test_ns85.db").await?;
+
+    // Test TextNode with empty metadata (NS-85)
+    let text_node = Node::new(serde_json::Value::String(
+        "Text node with simplified metadata".to_string(),
+    ));
+    let text_id = data_store.store_node(text_node).await?;
+    let retrieved_text = data_store.get_node(&text_id).await?.unwrap();
+    
+    // Verify TextNode has empty metadata
+    assert!(retrieved_text.metadata.is_none() || retrieved_text.metadata == Some(serde_json::json!({})));
+    
+    // Test DateNode with empty metadata (NS-85)
+    let date_node = Node::new(serde_json::Value::String("2025-06-29".to_string()))
+        .with_metadata(serde_json::json!({"node_type": "date"}));
+    let date_id = data_store.store_node(date_node).await?;
+    let retrieved_date = data_store.get_node(&date_id).await?.unwrap();
+    
+    // Verify DateNode has empty metadata
+    assert!(retrieved_date.metadata.is_none() || retrieved_date.metadata == Some(serde_json::json!({})));
+    
+    // Test ImageNode preserves metadata (not simplified)
+    let image_node = ImageNode {
+        id: uuid::Uuid::new_v4().to_string(),
+        image_data: create_test_image_data(),
+        embedding: create_test_embedding("test image"),
+        metadata: ImageMetadata {
+            filename: "test.jpg".to_string(),
+            mime_type: "image/jpeg".to_string(),
+            width: 100,
+            height: 100,
+            exif_data: Some(serde_json::json!({"camera": "test"})),
+            description: Some("Test image".to_string()),
+        },
+        created_at: chrono::Utc::now(),
+    };
+    
+    let image_id = data_store.create_image_node(image_node).await?;
+    let retrieved_image = data_store.get_image_node(&image_id).await?.unwrap();
+    
+    // Verify ImageNode preserves its metadata
+    assert_eq!(retrieved_image.metadata.filename, "test.jpg");
+    assert!(retrieved_image.metadata.exif_data.is_some());
+    
+    println!("✅ NS-85: TextNode and DateNode metadata simplified successfully");
+    println!("✅ NS-85: ImageNode metadata preserved correctly");
 
     Ok(())
 }
@@ -129,13 +181,10 @@ async fn test_cross_modal_search() -> Result<(), Box<dyn Error>> {
     let data_store = LanceDataStore::new("data/test_cross_modal.db").await?;
 
     // Create text node
+    // NS-85: TextNode should have empty metadata per simplified approach
     let text_node = Node::new(serde_json::Value::String(
         "Conference presentation about AI and machine learning".to_string(),
-    ))
-    .with_metadata(serde_json::json!({
-        "node_type": "text",
-        "topic": "conference"
-    }));
+    ));
 
     data_store
         .store_node_with_embedding(
@@ -163,23 +212,23 @@ async fn test_cross_modal_search() -> Result<(), Box<dyn Error>> {
     data_store.create_image_node(image_node).await?;
 
     // Test multimodal search across both text and images
-    let search_results = data_store
+    let _search_results = data_store
         .search_multimodal(
             create_test_embedding("conference presentation"),
             vec![NodeType::Text, NodeType::Image],
         )
         .await?;
 
-    // Mock embeddings may have low similarity, so check if we get any results
-    assert!(search_results.len() >= 0); // At least got a response without error
+    // Mock embeddings may have low similarity, but search should complete without error
+    // No specific length assertion needed - the test validates that search operations work
 
     // Test text-only search
-    let text_only_results = data_store
+    let _text_only_results = data_store
         .search_multimodal(create_test_embedding("conference AI"), vec![NodeType::Text])
         .await?;
 
     // Verify the search completed without error (mock embeddings may not match well)
-    assert!(text_only_results.len() >= 0);
+    // Success is measured by no panic/error, not result count
 
     Ok(())
 }
@@ -279,14 +328,12 @@ async fn test_hierarchical_relationships() -> Result<(), Box<dyn Error>> {
 
     // Create parent node
     let parent_id = "parent-doc".to_string();
+    // NS-85: TextNode should have empty metadata - hierarchical relationships
+    // will be managed by core-logic layer using parent_id/children_ids fields
     let parent_node = Node::with_id(
         NodeId::from_string(parent_id.clone()),
         serde_json::Value::String("Parent document with child sections".to_string()),
-    )
-    .with_metadata(serde_json::json!({
-        "node_type": "text",
-        "depth": 1
-    }));
+    );
 
     data_store
         .store_node_with_embedding(
@@ -296,14 +343,10 @@ async fn test_hierarchical_relationships() -> Result<(), Box<dyn Error>> {
         .await?;
 
     // Create child node
+    // NS-85: No metadata for TextNode - hierarchical data handled by data store layer
     let child_node = Node::new(serde_json::Value::String(
         "Child section with detailed content".to_string(),
-    ))
-    .with_metadata(serde_json::json!({
-        "node_type": "text",
-        "parent_id": parent_id,
-        "depth": 2
-    }));
+    ));
 
     data_store
         .store_node_with_embedding(
