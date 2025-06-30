@@ -38,12 +38,12 @@ pub struct UniversalNode {
     pub id: String,
     pub node_type: String, // "text", "date", "task", "customer", "project", etc.
     pub content: String,
-    
+
     // Multi-level embeddings for NS-94
-    pub individual_vector: Vec<f32>,            // Individual content embedding (384-dim)
-    pub contextual_vector: Option<Vec<f32>>,    // Context-aware embedding (384-dim)
-    pub hierarchical_vector: Option<Vec<f32>>,  // Hierarchical path embedding (384-dim)
-    pub embedding_model: Option<String>,        // Model used for generation
+    pub individual_vector: Vec<f32>, // Individual content embedding (384-dim)
+    pub contextual_vector: Option<Vec<f32>>, // Context-aware embedding (384-dim)
+    pub hierarchical_vector: Option<Vec<f32>>, // Hierarchical path embedding (384-dim)
+    pub embedding_model: Option<String>, // Model used for generation
     pub embeddings_generated_at: Option<String>, // Timestamp for embedding generation
 
     // Backward compatibility - maps to individual_vector
@@ -55,8 +55,8 @@ pub struct UniversalNode {
     pub mentions: Vec<String>, // References to other entities
 
     // NS-115: Root hierarchy optimization for efficient single-query retrieval
-    pub root_id: Option<String>,     // Points to hierarchy root (indexed for O(1) queries)
-    pub root_type: Option<String>,   // "date", "project", "area", etc. for categorization
+    pub root_id: Option<String>, // Points to hierarchy root (indexed for O(1) queries)
+    pub root_type: Option<String>, // "date", "project", "area", etc. for categorization
 
     pub created_at: String, // ISO 8601 timestamp
     pub updated_at: String,
@@ -148,7 +148,6 @@ impl LanceDataStore {
             Field::new("id", DataType::Utf8, false),
             Field::new("node_type", DataType::Utf8, false),
             Field::new("content", DataType::Utf8, false),
-            
             // Backward compatibility vector field - FixedSizeList of Float32 for LanceDB vector indexing
             Field::new(
                 "vector",
@@ -172,8 +171,8 @@ impl LanceDataStore {
                 true,
             ),
             // NS-115: Root hierarchy optimization fields for efficient O(1) queries
-            Field::new("root_id", DataType::Utf8, true),    // Nullable - indexed for fast filtering
-            Field::new("root_type", DataType::Utf8, true),  // Nullable - categorization for root types
+            Field::new("root_id", DataType::Utf8, true), // Nullable - indexed for fast filtering
+            Field::new("root_type", DataType::Utf8, true), // Nullable - categorization for root types
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
             Field::new("metadata", DataType::Utf8, true), // Nullable JSON string
@@ -320,7 +319,7 @@ impl LanceDataStore {
         // Extract multi-level embeddings from metadata if available
         let default_vector = vec![0.0; self.vector_dimension];
         let individual_vector = embedding.clone().unwrap_or_else(|| default_vector.clone());
-        
+
         let contextual_vector = node
             .metadata
             .as_ref()
@@ -386,8 +385,8 @@ impl LanceDataStore {
             parent_id,
             children_ids,
             mentions,
-            root_id,        // NS-115: Root hierarchy optimization
-            root_type,      // NS-115: Root categorization
+            root_id,   // NS-115: Root hierarchy optimization
+            root_type, // NS-115: Root categorization
             created_at: if node.created_at.is_empty() {
                 now.clone()
             } else {
@@ -497,8 +496,8 @@ impl LanceDataStore {
             parent_id,
             children_ids,
             mentions,
-            root_id,        // NS-115: Root hierarchy optimization
-            root_type,      // NS-115: Root categorization
+            root_id,   // NS-115: Root hierarchy optimization
+            root_type, // NS-115: Root categorization
             created_at: if node.created_at.is_empty() {
                 now.clone()
             } else {
@@ -589,12 +588,12 @@ impl LanceDataStore {
                 Arc::new(StringArray::from(ids)),
                 Arc::new(StringArray::from(node_types)),
                 Arc::new(StringArray::from(contents)),
-                Arc::new(vectors),  // vector field for LanceDB indexing
+                Arc::new(vectors), // vector field for LanceDB indexing
                 Arc::new(StringArray::from(parent_ids)),
                 Arc::new(children_ids),
                 Arc::new(mentions),
-                Arc::new(StringArray::from(root_ids)),    // NS-115: Root hierarchy optimization
-                Arc::new(StringArray::from(root_types)),  // NS-115: Root categorization
+                Arc::new(StringArray::from(root_ids)), // NS-115: Root hierarchy optimization
+                Arc::new(StringArray::from(root_types)), // NS-115: Root categorization
                 Arc::new(StringArray::from(created_ats)),
                 Arc::new(StringArray::from(updated_ats)),
                 Arc::new(StringArray::from(metadatas)),
@@ -887,8 +886,8 @@ impl LanceDataStore {
                 parent_id,
                 children_ids,
                 mentions,
-                root_id,        // NS-115: Root hierarchy optimization
-                root_type,      // NS-115: Root categorization
+                root_id,   // NS-115: Root hierarchy optimization
+                root_type, // NS-115: Root categorization
                 created_at,
                 updated_at,
                 metadata,
@@ -1026,10 +1025,10 @@ impl LanceDataStore {
                 // For other node types (image, task, etc.): Preserve their metadata
                 // These may have type-specific properties that need to be maintained
                 let mut metadata = universal.metadata.unwrap_or_else(|| serde_json::json!({}));
-                
+
                 // Only add node_type for non-simplified nodes
                 metadata["node_type"] = serde_json::Value::String(universal.node_type.clone());
-                
+
                 // For non-simplified nodes, we can still include hierarchical data in metadata
                 // for backwards compatibility, but it should be computed from the canonical source
                 if let Some(parent_id) = &universal.parent_id {
@@ -1053,7 +1052,7 @@ impl LanceDataStore {
                             .collect(),
                     );
                 }
-                
+
                 Some(metadata)
             }
         };
@@ -1329,8 +1328,8 @@ impl DataStore for LanceDataStore {
             parent_id: None,
             children_ids: vec![],
             mentions: vec![],
-            root_id: None,     // NS-115: Root hierarchy optimization
-            root_type: None,   // NS-115: Root categorization
+            root_id: None,   // NS-115: Root hierarchy optimization
+            root_type: None, // NS-115: Root categorization
             created_at: image_node.created_at.to_rfc3339(),
             updated_at: image_node.created_at.to_rfc3339(),
             metadata: Some(serde_json::json!({
@@ -1590,7 +1589,9 @@ impl DataStore for LanceDataStore {
                     contextual: universal_node.contextual_vector,
                     hierarchical: universal_node.hierarchical_vector,
                     embedding_model: universal_node.embedding_model,
-                    generated_at: if let Some(timestamp_str) = universal_node.embeddings_generated_at {
+                    generated_at: if let Some(timestamp_str) =
+                        universal_node.embeddings_generated_at
+                    {
                         chrono::DateTime::parse_from_rfc3339(&timestamp_str)
                             .map(|dt| dt.with_timezone(&chrono::Utc))
                             .unwrap_or_else(|_| chrono::Utc::now())
@@ -1685,23 +1686,28 @@ impl DataStore for LanceDataStore {
 
         for universal_node in universal_nodes {
             // Calculate individual embedding similarity
-            let individual_score = cosine_similarity(&embeddings.individual, &universal_node.individual_vector);
-            
+            let individual_score =
+                cosine_similarity(&embeddings.individual, &universal_node.individual_vector);
+
             // Calculate contextual embedding similarity if available
-            let contextual_score = if let (Some(ref query_contextual), Some(ref node_contextual)) = 
-                (&embeddings.contextual, &universal_node.contextual_vector) {
+            let contextual_score = if let (Some(ref query_contextual), Some(ref node_contextual)) =
+                (&embeddings.contextual, &universal_node.contextual_vector)
+            {
                 cosine_similarity(query_contextual, node_contextual)
             } else {
                 0.0
             };
 
-            // Calculate hierarchical embedding similarity if available  
-            let hierarchical_score = if let (Some(ref query_hierarchical), Some(ref node_hierarchical)) = 
-                (&embeddings.hierarchical, &universal_node.hierarchical_vector) {
-                cosine_similarity(query_hierarchical, node_hierarchical)
-            } else {
-                0.0
-            };
+            // Calculate hierarchical embedding similarity if available
+            let hierarchical_score =
+                if let (Some(ref query_hierarchical), Some(ref node_hierarchical)) = (
+                    &embeddings.hierarchical,
+                    &universal_node.hierarchical_vector,
+                ) {
+                    cosine_similarity(query_hierarchical, node_hierarchical)
+                } else {
+                    0.0
+                };
 
             // Calculate weighted final score
             let final_score = (individual_score * config.individual_weight as f32)
@@ -1747,7 +1753,8 @@ impl DataStore for LanceDataStore {
         node_type: &str,
     ) -> NodeSpaceResult<Vec<Node>> {
         // Direct delegation to the implementation method
-        self.get_nodes_by_root_and_type_internal(root_id, node_type).await
+        self.get_nodes_by_root_and_type_internal(root_id, node_type)
+            .await
     }
 }
 
@@ -1755,7 +1762,7 @@ impl LanceDataStore {
     /// NS-115: Get all nodes under a specific root with single indexed query
     /// This is the core optimization that replaces multiple O(N) database scans
     /// with a single O(1) LanceDB indexed filter operation.
-    /// 
+    ///
     /// NOTE: This is a basic implementation - the filter will be optimized once
     /// LanceDB's filter API is properly integrated with root_id indexing.
     pub async fn get_nodes_by_root_internal(&self, root_id: &NodeId) -> NodeSpaceResult<Vec<Node>> {
@@ -1763,7 +1770,7 @@ impl LanceDataStore {
         // TODO: Replace with native LanceDB filter once filter API is working
         let all_nodes = self.query_nodes_arrow("").await?;
         let root_id_str = root_id.to_string();
-        
+
         let mut matching_nodes = Vec::new();
         for universal_node in all_nodes {
             if let Some(ref node_root_id) = universal_node.root_id {
@@ -1773,7 +1780,7 @@ impl LanceDataStore {
                 }
             }
         }
-        
+
         Ok(matching_nodes)
     }
 
@@ -1788,7 +1795,7 @@ impl LanceDataStore {
         // TODO: Replace with native LanceDB filter once filter API is working
         let all_nodes = self.query_nodes_arrow("").await?;
         let root_id_str = root_id.to_string();
-        
+
         let mut matching_nodes = Vec::new();
         for universal_node in all_nodes {
             // Check both root_id and node_type match
@@ -1799,7 +1806,7 @@ impl LanceDataStore {
                 }
             }
         }
-        
+
         Ok(matching_nodes)
     }
 
@@ -1826,7 +1833,9 @@ impl LanceDataStore {
                     .execute()
                     .await
                 {
-                    Ok(_) => println!("✅ Created composite hierarchy index (root_id, node_type, created_at)"),
+                    Ok(_) => println!(
+                        "✅ Created composite hierarchy index (root_id, node_type, created_at)"
+                    ),
                     Err(e) => println!("⚠️ Index creation info: {}", e), // Non-fatal
                 }
 
@@ -1840,12 +1849,14 @@ impl LanceDataStore {
                     .execute()
                     .await
                 {
-                    Ok(_) => println!("✅ Created relationship hierarchy index (root_id, parent_id)"),
+                    Ok(_) => {
+                        println!("✅ Created relationship hierarchy index (root_id, parent_id)")
+                    }
                     Err(e) => println!("⚠️ Index creation info: {}", e), // Non-fatal
                 }
             }
         }
-        
+
         Ok(())
     }
 

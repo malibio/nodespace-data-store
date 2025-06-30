@@ -87,16 +87,16 @@ pub enum DataStoreError {
 
 impl From<DataStoreError> for NodeSpaceError {
     fn from(err: DataStoreError) -> Self {
-        use nodespace_core_types::{DatabaseError, ValidationError, ProcessingError};
-        
+        use nodespace_core_types::{DatabaseError, ProcessingError, ValidationError};
+
         match err {
             // Database-related errors
-            DataStoreError::LanceDB(_) => {
-                NodeSpaceError::Database(DatabaseError::connection_failed("lancedb", &err.to_string()))
-            }
-            DataStoreError::LanceDBConnection(_) => {
-                NodeSpaceError::Database(DatabaseError::connection_failed("lancedb", &err.to_string()))
-            }
+            DataStoreError::LanceDB(_) => NodeSpaceError::Database(
+                DatabaseError::connection_failed("lancedb", &err.to_string()),
+            ),
+            DataStoreError::LanceDBConnection(_) => NodeSpaceError::Database(
+                DatabaseError::connection_failed("lancedb", &err.to_string()),
+            ),
             DataStoreError::LanceDBTable(_) => {
                 NodeSpaceError::Database(DatabaseError::TransactionFailed {
                     operation: "table_operation".to_string(),
@@ -155,9 +155,9 @@ impl From<DataStoreError> for NodeSpaceError {
                     can_retry: false,
                 })
             }
-            DataStoreError::Database(_) => {
-                NodeSpaceError::Database(DatabaseError::connection_failed("database", &err.to_string()))
-            }
+            DataStoreError::Database(_) => NodeSpaceError::Database(
+                DatabaseError::connection_failed("database", &err.to_string()),
+            ),
             DataStoreError::Migration(_) => {
                 NodeSpaceError::Database(DatabaseError::MigrationFailed {
                     version: "current".to_string(),
@@ -176,13 +176,11 @@ impl From<DataStoreError> for NodeSpaceError {
                     examples: vec!["Valid JSON structure".to_string()],
                 })
             }
-            DataStoreError::NodeNotFound(_) => {
-                NodeSpaceError::Database(DatabaseError::NotFound {
-                    entity_type: "Node".to_string(),
-                    id: "unknown".to_string(),
-                    suggestions: vec!["Check node ID format".to_string()],
-                })
-            }
+            DataStoreError::NodeNotFound(_) => NodeSpaceError::Database(DatabaseError::NotFound {
+                entity_type: "Node".to_string(),
+                id: "unknown".to_string(),
+                suggestions: vec!["Check node ID format".to_string()],
+            }),
             DataStoreError::InvalidQuery(_) => {
                 NodeSpaceError::Validation(ValidationError::InvalidFormat {
                     field: "query".to_string(),
@@ -199,14 +197,16 @@ impl From<DataStoreError> for NodeSpaceError {
                     max: expected.to_string(),
                 })
             }
-            DataStoreError::PerformanceThresholdExceeded { operation: _, actual_ms, threshold_ms } => {
-                NodeSpaceError::Validation(ValidationError::OutOfRange {
-                    field: "execution_time".to_string(),
-                    value: format!("{}ms", actual_ms),
-                    min: "0ms".to_string(),
-                    max: format!("{}ms", threshold_ms),
-                })
-            }
+            DataStoreError::PerformanceThresholdExceeded {
+                operation: _,
+                actual_ms,
+                threshold_ms,
+            } => NodeSpaceError::Validation(ValidationError::OutOfRange {
+                field: "execution_time".to_string(),
+                value: format!("{}ms", actual_ms),
+                min: "0ms".to_string(),
+                max: format!("{}ms", threshold_ms),
+            }),
             DataStoreError::SchemaValidation(_) => {
                 NodeSpaceError::Validation(ValidationError::SchemaValidationFailed {
                     schema_path: "universal_document_schema".to_string(),
@@ -222,7 +222,7 @@ impl From<DataStoreError> for NodeSpaceError {
                 })
             }
 
-            // Processing-related errors  
+            // Processing-related errors
             DataStoreError::ImageError(_) => {
                 NodeSpaceError::Processing(ProcessingError::EmbeddingFailed {
                     reason: err.to_string(),
@@ -257,12 +257,12 @@ impl From<DataStoreError> for NodeSpaceError {
             }
 
             // Legacy compatibility variants
-            DataStoreError::IoError(_) => NodeSpaceError::IoError { 
-                message: err.to_string() 
-            },
-            DataStoreError::NotImplemented(_) => NodeSpaceError::InternalError { 
+            DataStoreError::IoError(_) => NodeSpaceError::IoError {
                 message: err.to_string(),
-                service: "data-store".to_string() 
+            },
+            DataStoreError::NotImplemented(_) => NodeSpaceError::InternalError {
+                message: err.to_string(),
+                service: "data-store".to_string(),
             },
         }
     }

@@ -2,13 +2,13 @@
 //! This test validates that the NS-104 placeholder fixes are working correctly
 
 use nodespace_core_types::Node;
-use nodespace_data_store::{LanceDataStore, DataStore};
+use nodespace_data_store::{DataStore, LanceDataStore};
 use std::fs;
 
 #[tokio::test]
 async fn test_data_persists_between_sessions() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = "data/test_persistence_unique.db";
-    
+
     // Clean up any existing test database
     if std::path::Path::new(db_path).exists() {
         fs::remove_dir_all(db_path)?;
@@ -28,13 +28,16 @@ async fn test_data_persists_between_sessions() -> Result<(), Box<dyn std::error:
     {
         let data_store = LanceDataStore::new(db_path).await?;
         let retrieved = data_store.get_node(&node_id).await?;
-        
+
         assert!(retrieved.is_some(), "Node should persist between sessions");
         let retrieved_node = retrieved.unwrap();
         assert_eq!(retrieved_node.id, node_id);
-        
+
         let retrieved_content = retrieved_node.content.as_str().unwrap();
-        assert_eq!(retrieved_content, test_content, "Content should match exactly");
+        assert_eq!(
+            retrieved_content, test_content,
+            "Content should match exactly"
+        );
     }
 
     // Session 3: Update data
@@ -50,11 +53,14 @@ async fn test_data_persists_between_sessions() -> Result<(), Box<dyn std::error:
     {
         let data_store = LanceDataStore::new(db_path).await?;
         let retrieved = data_store.get_node(&node_id).await?;
-        
+
         assert!(retrieved.is_some(), "Updated node should persist");
         let retrieved_node = retrieved.unwrap();
         let retrieved_content = retrieved_node.content.as_str().unwrap();
-        assert_eq!(retrieved_content, updated_content, "Updated content should persist");
+        assert_eq!(
+            retrieved_content, updated_content,
+            "Updated content should persist"
+        );
     }
 
     // Session 5: Delete data
@@ -77,14 +83,14 @@ async fn test_data_persists_between_sessions() -> Result<(), Box<dyn std::error:
 
     println!("✅ All data persistence tests passed!");
     println!("✅ NS-104: LanceDB placeholders successfully replaced with real persistence");
-    
+
     Ok(())
 }
 
 #[tokio::test]
 async fn test_multiple_nodes_persistence() -> Result<(), Box<dyn std::error::Error>> {
     let db_path = "data/test_multi_persistence_clean.db";
-    
+
     // Clean up any existing test database
     if std::path::Path::new(db_path).exists() {
         fs::remove_dir_all(db_path)?;
@@ -92,15 +98,15 @@ async fn test_multiple_nodes_persistence() -> Result<(), Box<dyn std::error::Err
 
     let test_nodes = vec![
         "First node content",
-        "Second node content", 
-        "Third node content"
+        "Second node content",
+        "Third node content",
     ];
 
     // Session 1: Store multiple nodes
     let node_ids = {
         let data_store = LanceDataStore::new(db_path).await?;
         let mut ids = Vec::new();
-        
+
         for content in &test_nodes {
             let node = Node::new(serde_json::Value::String(content.to_string()));
             let id = node.id.clone();
@@ -113,14 +119,18 @@ async fn test_multiple_nodes_persistence() -> Result<(), Box<dyn std::error::Err
     // Session 2: Retrieve all nodes (new connection)
     {
         let data_store = LanceDataStore::new(db_path).await?;
-        
+
         for (i, node_id) in node_ids.iter().enumerate() {
             let retrieved = data_store.get_node(node_id).await?;
             assert!(retrieved.is_some(), "Node {} should persist", i);
-            
+
             let retrieved_node = retrieved.unwrap();
             let retrieved_content = retrieved_node.content.as_str().unwrap();
-            assert_eq!(retrieved_content, test_nodes[i], "Content should match for node {}", i);
+            assert_eq!(
+                retrieved_content, test_nodes[i],
+                "Content should match for node {}",
+                i
+            );
         }
     }
 
@@ -130,6 +140,6 @@ async fn test_multiple_nodes_persistence() -> Result<(), Box<dyn std::error::Err
     }
 
     println!("✅ Multiple nodes persistence test passed!");
-    
+
     Ok(())
 }

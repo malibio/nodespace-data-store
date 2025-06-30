@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use nodespace_core_types::{Node, NodeId, NodeSpaceResult};
 
-
 // DataStore trait - authoritative interface owned by this repository
 #[async_trait]
 pub trait DataStore {
@@ -135,17 +134,17 @@ pub enum NodeType {
 
 #[derive(Debug, Clone)]
 pub struct HybridSearchConfig {
-    pub semantic_weight: f64,          // 0.0-1.0, semantic similarity
-    pub structural_weight: f64,        // 0.0-1.0, relationship proximity
-    pub temporal_weight: f64,          // 0.0-1.0, time-based relevance
-    pub individual_weight: f64,        // 0.0-1.0, individual embedding weight
-    pub contextual_weight: f64,        // 0.0-1.0, contextual embedding weight  
-    pub hierarchical_weight: f64,      // 0.0-1.0, hierarchical embedding weight
-    pub max_results: usize,            // Maximum results to return
-    pub min_similarity_threshold: f64, // Minimum similarity score
-    pub enable_cross_modal: bool,      // Allow text→image search
+    pub semantic_weight: f64,            // 0.0-1.0, semantic similarity
+    pub structural_weight: f64,          // 0.0-1.0, relationship proximity
+    pub temporal_weight: f64,            // 0.0-1.0, time-based relevance
+    pub individual_weight: f64,          // 0.0-1.0, individual embedding weight
+    pub contextual_weight: f64,          // 0.0-1.0, contextual embedding weight
+    pub hierarchical_weight: f64,        // 0.0-1.0, hierarchical embedding weight
+    pub max_results: usize,              // Maximum results to return
+    pub min_similarity_threshold: f64,   // Minimum similarity score
+    pub enable_cross_modal: bool,        // Allow text→image search
     pub enable_cross_level_fusion: bool, // Combine scores across embedding levels
-    pub search_timeout_ms: u64,        // Maximum search time
+    pub search_timeout_ms: u64,          // Maximum search time
 }
 
 #[derive(Debug, Clone)]
@@ -166,10 +165,10 @@ pub struct RelevanceFactors {
 // NEW: Multi-level embedding types for NS-94
 #[derive(Debug, Clone)]
 pub struct MultiLevelEmbeddings {
-    pub individual: Vec<f32>,              // Node content embedding
-    pub contextual: Option<Vec<f32>>,      // Context-aware embedding (with siblings/parent)
-    pub hierarchical: Option<Vec<f32>>,    // Hierarchical path embedding
-    pub embedding_model: Option<String>,   // Model used for generation
+    pub individual: Vec<f32>,            // Node content embedding
+    pub contextual: Option<Vec<f32>>,    // Context-aware embedding (with siblings/parent)
+    pub hierarchical: Option<Vec<f32>>,  // Hierarchical path embedding
+    pub embedding_model: Option<String>, // Model used for generation
     pub generated_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -179,6 +178,3 @@ pub struct QueryEmbeddings {
     pub contextual: Option<Vec<f32>>,
     pub hierarchical: Option<Vec<f32>>,
 }
-
-
-

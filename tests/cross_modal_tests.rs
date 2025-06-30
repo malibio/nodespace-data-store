@@ -28,9 +28,11 @@ async fn test_basic_datastore_operations() -> Result<(), Box<dyn Error>> {
     // Content is stored as JSON Value, verify it contains our test string
     let retrieved_content = retrieved_node.content.as_str().unwrap();
     assert!(retrieved_content.contains("Test content for basic operations"));
-    
+
     // NS-85: Verify TextNode metadata is empty (simplified approach)
-    assert!(retrieved_node.metadata.is_none() || retrieved_node.metadata == Some(serde_json::json!({})));
+    assert!(
+        retrieved_node.metadata.is_none() || retrieved_node.metadata == Some(serde_json::json!({}))
+    );
 
     // Test deletion
     data_store.delete_node(&node_id).await?;
@@ -50,19 +52,23 @@ async fn test_ns85_simplified_metadata() -> Result<(), Box<dyn Error>> {
     ));
     let text_id = data_store.store_node(text_node).await?;
     let retrieved_text = data_store.get_node(&text_id).await?.unwrap();
-    
+
     // Verify TextNode has empty metadata
-    assert!(retrieved_text.metadata.is_none() || retrieved_text.metadata == Some(serde_json::json!({})));
-    
+    assert!(
+        retrieved_text.metadata.is_none() || retrieved_text.metadata == Some(serde_json::json!({}))
+    );
+
     // Test DateNode with empty metadata (NS-85)
     let date_node = Node::new(serde_json::Value::String("2025-06-29".to_string()))
         .with_metadata(serde_json::json!({"node_type": "date"}));
     let date_id = data_store.store_node(date_node).await?;
     let retrieved_date = data_store.get_node(&date_id).await?.unwrap();
-    
+
     // Verify DateNode has empty metadata
-    assert!(retrieved_date.metadata.is_none() || retrieved_date.metadata == Some(serde_json::json!({})));
-    
+    assert!(
+        retrieved_date.metadata.is_none() || retrieved_date.metadata == Some(serde_json::json!({}))
+    );
+
     // Test ImageNode preserves metadata (not simplified)
     let image_node = ImageNode {
         id: uuid::Uuid::new_v4().to_string(),
@@ -78,14 +84,14 @@ async fn test_ns85_simplified_metadata() -> Result<(), Box<dyn Error>> {
         },
         created_at: chrono::Utc::now(),
     };
-    
+
     let image_id = data_store.create_image_node(image_node).await?;
     let retrieved_image = data_store.get_image_node(&image_id).await?.unwrap();
-    
+
     // Verify ImageNode preserves its metadata
     assert_eq!(retrieved_image.metadata.filename, "test.jpg");
     assert!(retrieved_image.metadata.exif_data.is_some());
-    
+
     println!("✅ NS-85: TextNode and DateNode metadata simplified successfully");
     println!("✅ NS-85: ImageNode metadata preserved correctly");
 
