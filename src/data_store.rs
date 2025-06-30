@@ -95,6 +95,14 @@ pub trait DataStore {
         query_embedding: Vec<f32>,
         config: &HybridSearchConfig,
     ) -> NodeSpaceResult<Vec<SearchResult>>;
+
+    // NS-115: Root-based efficient hierarchy queries to replace O(N) scans
+    async fn get_nodes_by_root(&self, root_id: &NodeId) -> NodeSpaceResult<Vec<Node>>;
+    async fn get_nodes_by_root_and_type(
+        &self,
+        root_id: &NodeId,
+        node_type: &str,
+    ) -> NodeSpaceResult<Vec<Node>>;
 }
 
 // Cross-modal types for NS-81 implementation

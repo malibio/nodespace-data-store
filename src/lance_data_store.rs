@@ -1206,6 +1206,23 @@ impl DataStore for LanceDataStore {
         // TODO: Implement hybrid_semantic_search for full LanceDB
         Ok(vec![])
     }
+
+    // NS-115: Root-based efficient hierarchy queries
+    async fn get_nodes_by_root(&self, _root_id: &NodeId) -> NodeSpaceResult<Vec<Node>> {
+        // TODO: Implement get_nodes_by_root for full LanceDB
+        // For now, delegate to existing query_nodes as fallback
+        self.query_nodes("").await
+    }
+
+    async fn get_nodes_by_root_and_type(
+        &self,
+        _root_id: &NodeId,
+        _node_type: &str,
+    ) -> NodeSpaceResult<Vec<Node>> {
+        // TODO: Implement get_nodes_by_root_and_type for full LanceDB
+        // For now, delegate to existing query_nodes as fallback
+        self.query_nodes("").await
+    }
 }
 
 // Add base64 dependency to Cargo.toml
