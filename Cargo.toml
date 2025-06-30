@@ -34,13 +34,8 @@ rand = "0.8"
 futures = "0.3"
 base64 = "0.22"
 
-# SurrealDB (legacy - for migration compatibility)
-surrealdb = { version = "2.3.6", features = ["kv-mem", "kv-rocksdb"], optional = true }
-
 [features]
-default = ["lance-only"]
-lance-only = []  # Default: only LanceDB, no SurrealDB
-migration = ["surrealdb"]  # Enable SurrealDB for data migration only
+default = []
 
 [dev-dependencies]
 tokio-test = "0.4"
