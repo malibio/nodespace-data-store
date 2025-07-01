@@ -629,9 +629,14 @@ impl LanceDataStore {
             let vector = if let Some(vector_list_array) = vector_list_array {
                 if !vector_list_array.is_null(i) {
                     let vector_list = vector_list_array.value(i);
-                    vector_list.as_any().downcast_ref::<Float32Array>().map(|float_array| (0..float_array.len())
+                    vector_list
+                        .as_any()
+                        .downcast_ref::<Float32Array>()
+                        .map(|float_array| {
+                            (0..float_array.len())
                                 .map(|j| float_array.value(j))
-                                .collect())
+                                .collect()
+                        })
                 } else {
                     None
                 }
@@ -746,7 +751,7 @@ impl LanceDataStore {
             serde_json::Value::String(document.content.clone())
         };
 
-        let mut node = Node::with_id(node_id, content_value, "text".to_string());
+        let mut node = Node::with_id(node_id, content_value);
 
         if let Some(ref metadata_str) = document.metadata {
             if let Ok(metadata) = serde_json::from_str::<Value>(metadata_str) {
@@ -1282,7 +1287,6 @@ impl DataStore for LanceDataStore {
         self.query_nodes("").await
     }
 }
-
 
 #[cfg(test)]
 mod tests {

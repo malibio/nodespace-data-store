@@ -1083,7 +1083,6 @@ impl LanceDataStore {
             metadata: final_metadata,
             created_at: universal.created_at,
             updated_at: universal.updated_at,
-            node_type: universal.node_type,
             parent_id: universal.parent_id.map(NodeId::from_string),
             next_sibling: None,
             previous_sibling: None,
