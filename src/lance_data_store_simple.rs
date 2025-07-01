@@ -56,7 +56,7 @@ pub struct UniversalNode {
 
     // NS-115: Root hierarchy optimization for efficient single-query retrieval
     pub root_id: Option<String>, // Points to hierarchy root (indexed for O(1) queries)
-    pub root_type: Option<String>, // "date", "project", "area", etc. for categorization
+    // NS-125: root_type field removed - use node_type for categorization
 
     pub created_at: String, // ISO 8601 timestamp
     pub updated_at: String,
@@ -172,7 +172,7 @@ impl LanceDataStore {
             ),
             // NS-115: Root hierarchy optimization fields for efficient O(1) queries
             Field::new("root_id", DataType::Utf8, true), // Nullable - indexed for fast filtering
-            Field::new("root_type", DataType::Utf8, true), // Nullable - categorization for root types
+            // NS-125: root_type field removed
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
             Field::new("metadata", DataType::Utf8, true), // Nullable JSON string
@@ -210,7 +210,7 @@ impl LanceDataStore {
                 Arc::new(ListBuilder::new(StringBuilder::new()).finish()), // children_ids
                 Arc::new(ListBuilder::new(StringBuilder::new()).finish()), // mentions
                 Arc::new(StringArray::from(Vec::<Option<String>>::new())), // root_id (NS-115)
-                Arc::new(StringArray::from(Vec::<Option<String>>::new())), // root_type (NS-115)
+                // NS-125: root_type column removed
                 Arc::new(StringArray::from(Vec::<String>::new())), // created_at
                 Arc::new(StringArray::from(Vec::<String>::new())), // updated_at
                 Arc::new(StringArray::from(Vec::<Option<String>>::new())), // metadata
@@ -318,13 +318,7 @@ impl LanceDataStore {
                 .map(|s| s.to_string())
         });
 
-        let root_type = node.root_type.clone().or_else(|| {
-            node.metadata
-                .as_ref()
-                .and_then(|m| m.get("root_type"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        });
+        // NS-125: root_type removed - use node.r#type instead
 
         // Extract multi-level embeddings from metadata if available
         let default_vector = vec![0.0; self.vector_dimension];
@@ -396,7 +390,7 @@ impl LanceDataStore {
             children_ids,
             mentions,
             root_id,   // NS-115: Root hierarchy optimization
-            root_type, // NS-115: Root categorization
+            // NS-125: root_type field removed
             created_at: if node.created_at.is_empty() {
                 now.clone()
             } else {
@@ -479,13 +473,7 @@ impl LanceDataStore {
                 .map(|s| s.to_string())
         });
 
-        let root_type = node.root_type.clone().or_else(|| {
-            node.metadata
-                .as_ref()
-                .and_then(|m| m.get("root_type"))
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        });
+        // NS-125: root_type removed - use node.r#type instead
 
         // NS-85: Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
         // For these node types, hierarchical data should come from parent_id/children_ids fields only
@@ -517,7 +505,7 @@ impl LanceDataStore {
             children_ids,
             mentions,
             root_id,   // NS-115: Root hierarchy optimization
-            root_type, // NS-115: Root categorization
+            // NS-125: root_type field removed
             created_at: if node.created_at.is_empty() {
                 now.clone()
             } else {
@@ -548,7 +536,7 @@ impl LanceDataStore {
         let contents: Vec<String> = nodes.iter().map(|n| n.content.clone()).collect();
         let parent_ids: Vec<Option<String>> = nodes.iter().map(|n| n.parent_id.clone()).collect();
         let root_ids: Vec<Option<String>> = nodes.iter().map(|n| n.root_id.clone()).collect(); // NS-115
-        let root_types: Vec<Option<String>> = nodes.iter().map(|n| n.root_type.clone()).collect(); // NS-115
+        // NS-125: root_type field removed
         let created_ats: Vec<String> = nodes.iter().map(|n| n.created_at.clone()).collect();
         let updated_ats: Vec<String> = nodes.iter().map(|n| n.updated_at.clone()).collect();
         let metadatas: Vec<Option<String>> = nodes
@@ -613,7 +601,7 @@ impl LanceDataStore {
                 Arc::new(children_ids),
                 Arc::new(mentions),
                 Arc::new(StringArray::from(root_ids)), // NS-115: Root hierarchy optimization
-                Arc::new(StringArray::from(root_types)), // NS-115: Root categorization
+                // NS-125: root_type column removed
                 Arc::new(StringArray::from(created_ats)),
                 Arc::new(StringArray::from(updated_ats)),
                 Arc::new(StringArray::from(metadatas)),
@@ -882,16 +870,7 @@ impl LanceDataStore {
                     }
                 });
 
-            let root_type = batch
-                .column_by_name("root_type")
-                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
-                .and_then(|arr| {
-                    if arr.is_null(i) {
-                        None
-                    } else {
-                        Some(arr.value(i).to_string())
-                    }
-                });
+            // NS-125: root_type field removed
 
             let node = UniversalNode {
                 id,
@@ -907,7 +886,7 @@ impl LanceDataStore {
                 children_ids,
                 mentions,
                 root_id,   // NS-115: Root hierarchy optimization
-                root_type, // NS-115: Root categorization
+                // NS-125: root_type field removed
                 created_at,
                 updated_at,
                 metadata,
@@ -1079,15 +1058,14 @@ impl LanceDataStore {
 
         Node {
             id: NodeId::from_string(universal.id),
+            r#type: universal.node_type,
             content,
             metadata: final_metadata,
             created_at: universal.created_at,
             updated_at: universal.updated_at,
             parent_id: universal.parent_id.map(NodeId::from_string),
             next_sibling: None,
-            previous_sibling: None,
             root_id: universal.root_id.map(NodeId::from_string),
-            root_type: universal.root_type,
         }
     }
 }
@@ -1351,7 +1329,7 @@ impl DataStore for LanceDataStore {
             children_ids: vec![],
             mentions: vec![],
             root_id: None,   // NS-115: Root hierarchy optimization
-            root_type: None, // NS-115: Root categorization
+            // NS-125: root_type field removed
             created_at: image_node.created_at.to_rfc3339(),
             updated_at: image_node.created_at.to_rfc3339(),
             metadata: Some(serde_json::json!({

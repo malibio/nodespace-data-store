@@ -751,7 +751,7 @@ impl LanceDataStore {
             serde_json::Value::String(document.content.clone())
         };
 
-        let mut node = Node::with_id(node_id, content_value);
+        let mut node = Node::with_id(node_id, document.node_type.clone(), content_value);
 
         if let Some(ref metadata_str) = document.metadata {
             if let Ok(metadata) = serde_json::from_str::<Value>(metadata_str) {

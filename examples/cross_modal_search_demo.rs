@@ -27,6 +27,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // Create text nodes about events
     let text_node_1 = Node::with_id(
         NodeId::from_string("claire-birthday-notes".to_string()),
+        "text".to_string(),
         serde_json::Value::String(
             "Claire's birthday party was amazing! I wore my blue shirt and we had cake."
                 .to_string(),
@@ -41,6 +42,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let text_node_2 = Node::with_id(
         NodeId::from_string("team-meeting-notes".to_string()),
+        "text".to_string(),
         serde_json::Value::String(
             "Team meeting discussion about project timeline. Wore red shirt today.".to_string(),
         ),

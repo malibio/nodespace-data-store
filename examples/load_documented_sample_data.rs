@@ -321,7 +321,7 @@ async fn create_text_node(
     }
 
     let node =
-        Node::new(serde_json::Value::String(content.to_string())).with_metadata(base_metadata);
+        Node::new("text".to_string(), serde_json::Value::String(content.to_string())).with_metadata(base_metadata);
     Ok(node)
 }
 

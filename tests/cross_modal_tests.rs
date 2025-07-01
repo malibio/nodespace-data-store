@@ -14,7 +14,7 @@ async fn test_basic_datastore_operations() -> Result<(), Box<dyn Error>> {
 
     // Test basic node storage and retrieval
     // NS-85: TextNode should have empty metadata - hierarchical data handled by parent_id/children_ids fields
-    let test_node = Node::new(serde_json::Value::String(
+    let test_node = Node::new("text".to_string(), serde_json::Value::String(
         "Test content for basic operations".to_string(),
     ));
 
@@ -47,7 +47,7 @@ async fn test_ns85_simplified_metadata() -> Result<(), Box<dyn Error>> {
     let data_store = LanceDataStore::new("data/test_ns85.db").await?;
 
     // Test TextNode with empty metadata (NS-85)
-    let text_node = Node::new(serde_json::Value::String(
+    let text_node = Node::new("text".to_string(), serde_json::Value::String(
         "Text node with simplified metadata".to_string(),
     ));
     let text_id = data_store.store_node(text_node).await?;
@@ -59,7 +59,7 @@ async fn test_ns85_simplified_metadata() -> Result<(), Box<dyn Error>> {
     );
 
     // Test DateNode with empty metadata (NS-85)
-    let date_node = Node::new(serde_json::Value::String("2025-06-29".to_string()))
+    let date_node = Node::new("text".to_string(), serde_json::Value::String("2025-06-29".to_string()))
         .with_metadata(serde_json::json!({"node_type": "date"}));
     let date_id = data_store.store_node(date_node).await?;
     let retrieved_date = data_store.get_node(&date_id).await?.unwrap();
@@ -188,7 +188,7 @@ async fn test_cross_modal_search() -> Result<(), Box<dyn Error>> {
 
     // Create text node
     // NS-85: TextNode should have empty metadata per simplified approach
-    let text_node = Node::new(serde_json::Value::String(
+    let text_node = Node::new("text".to_string(), serde_json::Value::String(
         "Conference presentation about AI and machine learning".to_string(),
     ));
 
@@ -244,7 +244,7 @@ async fn test_hybrid_search_configuration() -> Result<(), Box<dyn Error>> {
     let data_store = LanceDataStore::new("data/test_hybrid.db").await?;
 
     // Create test content
-    let recent_node = Node::new(serde_json::Value::String(
+    let recent_node = Node::new("text".to_string(), serde_json::Value::String(
         "Recent conference talk about innovation".to_string(),
     ));
 
@@ -290,7 +290,7 @@ async fn test_performance_requirements() -> Result<(), Box<dyn Error>> {
     let data_store = LanceDataStore::new("data/test_performance.db").await?;
 
     // Create test data
-    let test_node = Node::new(serde_json::Value::String(
+    let test_node = Node::new("text".to_string(), serde_json::Value::String(
         "Performance test content for search benchmarks".to_string(),
     ));
 
@@ -358,12 +358,12 @@ async fn test_hierarchical_relationships() -> Result<(), Box<dyn Error>> {
 
     // Create child node with parent relationship
     // NS-85: No metadata for TextNode - hierarchical data handled by data store layer
-    let mut child_node = Node::new(serde_json::Value::String(
+    let mut child_node = Node::new("text".to_string(), serde_json::Value::String(
         "Child section with detailed content".to_string(),
     ));
     child_node.parent_id = Some(NodeId::from_string(parent_id.clone()));
     child_node.root_id = Some(NodeId::from_string(parent_id.clone()));
-    child_node.root_type = Some("document".to_string());
+    // NS-125: root_type field removed - use node.r#type instead
 
     data_store
         .store_node_with_embedding(

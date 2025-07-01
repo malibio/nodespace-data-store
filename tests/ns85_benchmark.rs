@@ -12,7 +12,7 @@ async fn benchmark_ns85_simplified_storage() -> Result<(), Box<dyn std::error::E
     // Create test nodes - TextNode with simplified metadata (should be faster)
     let test_nodes = (0..50)
         .map(|i| {
-            Node::new(serde_json::Value::String(format!(
+            Node::new("text".to_string(), serde_json::Value::String(format!(
                 "Test node {} for NS-85 performance benchmark",
                 i
             )))
@@ -80,7 +80,7 @@ async fn benchmark_ns85_memory_efficiency() -> Result<(), Box<dyn std::error::Er
     let data_store = LanceDataStore::new("data/benchmark_memory_ns85.db").await?;
 
     // Create nodes with and without metadata to compare
-    let text_node_simplified = Node::new(serde_json::Value::String(
+    let text_node_simplified = Node::new("text".to_string(), serde_json::Value::String(
         "Simplified TextNode with empty metadata".to_string(),
     ));
 
@@ -94,7 +94,7 @@ async fn benchmark_ns85_memory_efficiency() -> Result<(), Box<dyn std::error::Er
         "description": "Test image with full metadata"
     });
 
-    let image_node_full = Node::new(serde_json::Value::String("base64_image_data".to_string()))
+    let image_node_full = Node::new("text".to_string(), serde_json::Value::String("base64_image_data".to_string()))
         .with_metadata(image_metadata);
 
     // Measure storage size/efficiency

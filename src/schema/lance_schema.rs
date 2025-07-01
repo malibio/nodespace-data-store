@@ -1,91 +1,131 @@
-// LanceDB schema definitions for NodeSpace universal document format
-// Supporting both text and multimodal (image) content types
+// LanceDB schema definitions perfectly aligned with core-types Node structure
+// Fresh schema for NS-125 breaking changes - no migration needed
 
 use arrow_schema::{DataType, Field, Schema};
+use nodespace_core_types::{Node, NodeId};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Universal NodeSpace document schema for LanceDB
-/// This schema supports infinite entity extensibility without schema changes,
-/// including multimodal support for text and image content
-#[allow(dead_code)]
-pub struct UniversalSchema;
+/// Fresh LanceDB schema perfectly aligned with core-types Node (NS-125)
+/// 1:1 mapping between Node fields and LanceDB columns - no conversion complexity
+pub struct NodeSchema;
 
-impl UniversalSchema {
-    /// Get the Arrow schema for the universal NodeSpace document format
-    /// Supports both text and image nodes with unified vector storage
-    #[allow(dead_code)]
-    pub fn get_arrow_schema() -> Arc<Schema> {
-        let fields = vec![
-            // Core identification
+impl NodeSchema {
+    /// Create Arrow schema that exactly matches core-types Node structure
+    pub fn create_node_schema() -> Arc<Schema> {
+        Arc::new(Schema::new(vec![
+            // Perfect 1:1 mapping with Node struct
             Field::new("id", DataType::Utf8, false),
-            Field::new("node_type", DataType::Utf8, false), // "text", "image", "date", "task", etc.
-            // Content (flexible for text and binary data)
-            Field::new("content", DataType::Utf8, false), // Text content or base64 encoded binary
-            Field::new("content_type", DataType::Utf8, false), // "text/plain", "image/png", etc.
-            Field::new("content_size_bytes", DataType::UInt64, true), // Size for binary content
-            // Metadata (JSON blob for entity-specific fields)
-            Field::new("metadata", DataType::Utf8, true),
-            // Vector embeddings (unified for text and image)
-            Field::new(
-                "vector",
-                DataType::List(Arc::new(Field::new("item", DataType::Float32, false))),
-                true,
-            ),
-            Field::new("vector_model", DataType::Utf8, true), // Model used for embedding
-            Field::new("vector_dimensions", DataType::UInt32, true), // Vector size
-            // Structural relationships (simplified from SurrealDB graph model)
-            Field::new("parent_id", DataType::Utf8, true),
-            Field::new(
-                "children_ids",
-                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
-                true,
-            ),
-            Field::new(
-                "mentions",
-                DataType::List(Arc::new(Field::new("item", DataType::Utf8, false))),
-                true,
-            ),
-            Field::new("next_sibling", DataType::Utf8, true),
-            Field::new("previous_sibling", DataType::Utf8, true),
-            // Temporal fields
+            Field::new("type", DataType::Utf8, false),         // maps to Node.r#type
+            Field::new("content", DataType::Utf8, false),       // JSON string of Node.content
+            Field::new("metadata", DataType::Utf8, true),       // JSON string of Node.metadata
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
-            // Multimodal specific fields
-            Field::new("image_alt_text", DataType::Utf8, true), // Alt text for images
-            Field::new("image_width", DataType::UInt32, true),
-            Field::new("image_height", DataType::UInt32, true),
-            Field::new("image_format", DataType::Utf8, true), // "png", "jpg", "webp", etc.
-            // Extensibility (ghost properties for infinite extensibility)
-            Field::new("extended_properties", DataType::Utf8, true),
-            // Performance and indexing
-            Field::new("search_priority", DataType::Float32, true), // Boost factor for search
-            Field::new("last_accessed", DataType::Utf8, true),      // For cache management
-        ];
-
-        Arc::new(Schema::new(fields))
-    }
-
-    /// Get schema for text-only nodes (backwards compatibility)
-    #[allow(dead_code)]
-    pub fn get_text_schema() -> Arc<Schema> {
-        let fields = vec![
-            Field::new("id", DataType::Utf8, false),
-            Field::new("node_type", DataType::Utf8, false),
-            Field::new("content", DataType::Utf8, false),
-            Field::new("metadata", DataType::Utf8, true),
+            Field::new("parent_id", DataType::Utf8, true),
+            Field::new("next_sibling", DataType::Utf8, true),   // Unidirectional only
+            Field::new("root_id", DataType::Utf8, true),        // NS-115 hierarchy optimization
+            
+            // Vector embedding support (optional)
             Field::new(
                 "vector",
-                DataType::List(Arc::new(Field::new("item", DataType::Float32, false))),
+                DataType::FixedSizeList(
+                    Arc::new(Field::new("item", DataType::Float32, false)),
+                    384, // Default FastEmbed dimension
+                ),
                 true,
             ),
-            Field::new("parent_id", DataType::Utf8, true),
-            Field::new("created_at", DataType::Utf8, false),
-            Field::new("updated_at", DataType::Utf8, false),
-        ];
-
-        Arc::new(Schema::new(fields))
+            Field::new("vector_model", DataType::Utf8, true),   // Embedding model used
+        ]))
     }
+
+}
+
+/// LanceDB document struct with perfect 1:1 mapping to core-types Node
+/// No field name translation needed - direct conversion
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LanceDocument {
+    pub id: String,
+    pub r#type: String,              // Direct mapping to Node.r#type
+    pub content: String,             // JSON string of Node.content
+    pub metadata: Option<String>,    // JSON string of Node.metadata
+    pub created_at: String,
+    pub updated_at: String,
+    pub parent_id: Option<String>,
+    pub next_sibling: Option<String>, // Unidirectional only (no previous_sibling)
+    pub root_id: Option<String>,     // NS-115 hierarchy optimization
+    
+    // Vector embedding support
+    pub vector: Option<Vec<f32>>,    // 384-dim FastEmbed vectors
+    pub vector_model: Option<String>,
+}
+
+/// Clean conversion from Node to LanceDocument
+impl From<Node> for LanceDocument {
+    fn from(node: Node) -> Self {
+        Self {
+            id: node.id.to_string(),
+            r#type: node.r#type,                    // Perfect 1:1 mapping!
+            content: serde_json::to_string(&node.content).unwrap_or_default(),
+            metadata: node.metadata.map(|m| serde_json::to_string(&m).unwrap_or_default()),
+            created_at: node.created_at,
+            updated_at: node.updated_at,
+            parent_id: node.parent_id.map(|id| id.to_string()),
+            next_sibling: node.next_sibling.map(|id| id.to_string()),
+            root_id: node.root_id.map(|id| id.to_string()),
+            vector: None,        // Set by embedding service
+            vector_model: None,  // Set by embedding service
+        }
+    }
+}
+
+/// Clean conversion from LanceDocument to Node
+impl TryFrom<LanceDocument> for Node {
+    type Error = Box<dyn std::error::Error + Send + Sync>;
+
+    fn try_from(doc: LanceDocument) -> Result<Self, Self::Error> {
+        let content = serde_json::from_str(&doc.content)?;
+        let mut node = Node::with_id(
+            NodeId::from_string(doc.id),
+            doc.r#type,                           // Perfect 1:1 mapping!
+            content,
+        );
+
+        // Set optional fields
+        if let Some(metadata_str) = doc.metadata {
+            let metadata = serde_json::from_str(&metadata_str)?;
+            node = node.with_metadata(metadata);
+        }
+
+        node.created_at = doc.created_at;
+        node.updated_at = doc.updated_at;
+        node.parent_id = doc.parent_id.map(NodeId::from_string);
+        node.next_sibling = doc.next_sibling.map(NodeId::from_string);
+        node.root_id = doc.root_id.map(NodeId::from_string);
+
+        Ok(node)
+    }
+}
+
+/// Helper constructors for common node types (NS-125 migration helpers)
+/// Since we can't impl on external Node type, these are standalone functions
+pub fn create_text_node(content: serde_json::Value) -> Node {
+    Node::new("text".to_string(), content)
+}
+
+pub fn create_date_node(content: serde_json::Value) -> Node {
+    Node::new("date".to_string(), content)
+}
+
+pub fn create_task_node(content: serde_json::Value) -> Node {
+    Node::new("task".to_string(), content)
+}
+
+pub fn create_image_node(content: serde_json::Value) -> Node {
+    Node::new("image".to_string(), content)
+}
+
+pub fn create_project_node(content: serde_json::Value) -> Node {
+    Node::new("project".to_string(), content)
 }
 
 /// Node types supported by the universal schema
@@ -239,14 +279,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_universal_schema_creation() {
-        let schema = UniversalSchema::get_arrow_schema();
-        assert!(schema.fields().len() > 15); // Should have all multimodal fields
+    fn test_node_schema_creation() {
+        let schema = NodeSchema::create_node_schema();
+        assert!(schema.fields().len() >= 10); // Should have core Node fields
 
-        // Check for key multimodal fields
-        assert!(schema.field_with_name("content_type").is_ok());
-        assert!(schema.field_with_name("image_width").is_ok());
+        // Check for key Node fields aligned with core-types
+        assert!(schema.field_with_name("id").is_ok());
+        assert!(schema.field_with_name("type").is_ok());
+        assert!(schema.field_with_name("content").is_ok());
+        assert!(schema.field_with_name("vector").is_ok());
         assert!(schema.field_with_name("vector_model").is_ok());
+        assert!(schema.field_with_name("root_id").is_ok());
     }
 
     #[test]

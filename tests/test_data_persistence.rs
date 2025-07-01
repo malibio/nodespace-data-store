@@ -18,7 +18,7 @@ async fn test_data_persists_between_sessions() -> Result<(), Box<dyn std::error:
     let test_content = "This content should persist between sessions";
     let node_id = {
         let data_store = LanceDataStore::new(db_path).await?;
-        let node = Node::new(serde_json::Value::String(test_content.to_string()));
+        let node = Node::new("text".to_string(), serde_json::Value::String(test_content.to_string()));
         let stored_id = node.id.clone();
         data_store.store_node(node).await?;
         stored_id
@@ -108,7 +108,7 @@ async fn test_multiple_nodes_persistence() -> Result<(), Box<dyn std::error::Err
         let mut ids = Vec::new();
 
         for content in &test_nodes {
-            let node = Node::new(serde_json::Value::String(content.to_string()));
+            let node = Node::new("text".to_string(), serde_json::Value::String(content.to_string()));
             let id = node.id.clone();
             data_store.store_node(node).await?;
             ids.push(id);

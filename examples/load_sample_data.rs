@@ -15,6 +15,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // June 23, 2025 - Q3 Strategy & Client Check-ins
     let q3_strategy = Node::with_id(
         NodeId::from_string("q3-strategy-review".to_string()),
+        "text".to_string(),
         serde_json::Value::String(
             "Q3 Campaign Strategy Review - Leadership Meeting\n\nAction items:\n• Schedule creative brief session with design team\n• Update campaign timeline in Airtable\n• Review competitor analysis from last quarter".to_string()
         )
