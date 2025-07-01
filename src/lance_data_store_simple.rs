@@ -269,13 +269,19 @@ impl LanceDataStore {
             "text".to_string()
         };
 
-        // Extract relationships from metadata BEFORE potentially clearing it
+        // Extract relationships from Node fields and metadata
+        // Prefer Node.parent_id field over metadata for direct field access
         let parent_id = node
-            .metadata
+            .parent_id
             .as_ref()
-            .and_then(|m| m.get("parent_id"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+            .map(|id| id.to_string())
+            .or_else(|| {
+                node.metadata
+                    .as_ref()
+                    .and_then(|m| m.get("parent_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            });
 
         let children_ids = node
             .metadata
@@ -302,19 +308,23 @@ impl LanceDataStore {
             .unwrap_or_default();
 
         // NS-115: Extract root hierarchy optimization fields
-        let root_id = node
-            .metadata
-            .as_ref()
-            .and_then(|m| m.get("root_id"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        // Extract root hierarchy fields from Node fields and metadata
+        // Prefer Node fields over metadata for direct field access
+        let root_id = node.root_id.as_ref().map(|id| id.to_string()).or_else(|| {
+            node.metadata
+                .as_ref()
+                .and_then(|m| m.get("root_id"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        });
 
-        let root_type = node
-            .metadata
-            .as_ref()
-            .and_then(|m| m.get("root_type"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        let root_type = node.root_type.clone().or_else(|| {
+            node.metadata
+                .as_ref()
+                .and_then(|m| m.get("root_type"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        });
 
         // Extract multi-level embeddings from metadata if available
         let default_vector = vec![0.0; self.vector_dimension];
@@ -420,13 +430,19 @@ impl LanceDataStore {
             "text".to_string()
         };
 
-        // Extract relationships from metadata
+        // Extract relationships from Node fields and metadata
+        // Prefer Node.parent_id field over metadata for direct field access
         let parent_id = node
-            .metadata
+            .parent_id
             .as_ref()
-            .and_then(|m| m.get("parent_id"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+            .map(|id| id.to_string())
+            .or_else(|| {
+                node.metadata
+                    .as_ref()
+                    .and_then(|m| m.get("parent_id"))
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            });
 
         let children_ids = node
             .metadata
@@ -453,19 +469,23 @@ impl LanceDataStore {
             .unwrap_or_default();
 
         // NS-115: Extract root hierarchy optimization fields
-        let root_id = node
-            .metadata
-            .as_ref()
-            .and_then(|m| m.get("root_id"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        // Extract root hierarchy fields from Node fields and metadata
+        // Prefer Node fields over metadata for direct field access
+        let root_id = node.root_id.as_ref().map(|id| id.to_string()).or_else(|| {
+            node.metadata
+                .as_ref()
+                .and_then(|m| m.get("root_id"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        });
 
-        let root_type = node
-            .metadata
-            .as_ref()
-            .and_then(|m| m.get("root_type"))
-            .and_then(|v| v.as_str())
-            .map(|s| s.to_string());
+        let root_type = node.root_type.clone().or_else(|| {
+            node.metadata
+                .as_ref()
+                .and_then(|m| m.get("root_type"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        });
 
         // NS-85: Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
         // For these node types, hierarchical data should come from parent_id/children_ids fields only
@@ -1063,9 +1083,12 @@ impl LanceDataStore {
             metadata: final_metadata,
             created_at: universal.created_at,
             updated_at: universal.updated_at,
+            node_type: universal.node_type,
             parent_id: universal.parent_id.map(NodeId::from_string),
             next_sibling: None,
             previous_sibling: None,
+            root_id: universal.root_id.map(NodeId::from_string),
+            root_type: universal.root_type,
         }
     }
 }
@@ -1824,36 +1847,24 @@ impl LanceDataStore {
             if stats > 0 {
                 // Primary composite index: (root_id, node_type, created_at)
                 // This enables efficient hierarchy + type + temporal queries
-                match table
+                let _ = table
                     .create_index(
                         &["root_id", "node_type", "created_at"],
                         lancedb::index::Index::BTree(Default::default()),
                     )
                     .replace(true)
                     .execute()
-                    .await
-                {
-                    Ok(_) => println!(
-                        "✅ Created composite hierarchy index (root_id, node_type, created_at)"
-                    ),
-                    Err(e) => println!("⚠️ Index creation info: {}", e), // Non-fatal
-                }
+                    .await;
 
                 // Supporting index: (root_id, parent_id) for relationship queries
-                match table
+                let _ = table
                     .create_index(
                         &["root_id", "parent_id"],
                         lancedb::index::Index::BTree(Default::default()),
                     )
                     .replace(true)
                     .execute()
-                    .await
-                {
-                    Ok(_) => {
-                        println!("✅ Created relationship hierarchy index (root_id, parent_id)")
-                    }
-                    Err(e) => println!("⚠️ Index creation info: {}", e), // Non-fatal
-                }
+                    .await;
             }
         }
 

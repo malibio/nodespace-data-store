@@ -18,9 +18,12 @@ async fn test_root_hierarchy_optimization() -> NodeSpaceResult<()> {
         })),
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
+        node_type: "project".to_string(),
         parent_id: None,
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(root_id.clone()),
+        root_type: Some("project".to_string()),
     };
 
     data_store.store_node(root_node).await?;
@@ -40,9 +43,12 @@ async fn test_root_hierarchy_optimization() -> NodeSpaceResult<()> {
             })),
             created_at: chrono::Utc::now().to_rfc3339(),
             updated_at: chrono::Utc::now().to_rfc3339(),
+            node_type: "task".to_string(),
             parent_id: Some(root_id.clone()),
             next_sibling: None,
             previous_sibling: None,
+            root_id: Some(root_id.clone()),
+            root_type: Some("project".to_string()),
         };
 
         data_store.store_node(child_node).await?;
@@ -61,9 +67,12 @@ async fn test_root_hierarchy_optimization() -> NodeSpaceResult<()> {
         })),
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
+        node_type: "project".to_string(),
         parent_id: None,
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(other_root_id.clone()),
+        root_type: Some("project".to_string()),
     };
 
     data_store.store_node(other_root_node).await?;
@@ -149,9 +158,12 @@ async fn test_root_id_schema_fields() -> NodeSpaceResult<()> {
         })),
         created_at: chrono::Utc::now().to_rfc3339(),
         updated_at: chrono::Utc::now().to_rfc3339(),
+        node_type: "test".to_string(),
         parent_id: None,
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(NodeId::from_string("test-root-123".to_string())),
+        root_type: Some("test_hierarchy".to_string()),
     };
 
     data_store.store_node(test_node).await?;

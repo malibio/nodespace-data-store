@@ -15,8 +15,8 @@ use arrow_array::{
 };
 use arrow_schema::{DataType, Field, Schema};
 use async_trait::async_trait;
+use base64::prelude::*;
 use chrono::Utc;
-use futures;
 use lancedb::query::{ExecutableQuery, QueryBase};
 use lancedb::{connect, Connection, Table};
 use nodespace_core_types::{Node, NodeId, NodeSpaceResult};
@@ -225,7 +225,7 @@ impl LanceDataStore {
             .with_metadata("size_bytes".to_string(), content.len().to_string());
 
         // Encode binary content as base64
-        let base64_content = base64::encode(&content);
+        let base64_content = base64::prelude::BASE64_STANDARD.encode(&content);
 
         let node_id = NodeId::new();
         let now = Utc::now().to_rfc3339();
@@ -629,15 +629,9 @@ impl LanceDataStore {
             let vector = if let Some(vector_list_array) = vector_list_array {
                 if !vector_list_array.is_null(i) {
                     let vector_list = vector_list_array.value(i);
-                    if let Some(float_array) = vector_list.as_any().downcast_ref::<Float32Array>() {
-                        Some(
-                            (0..float_array.len())
+                    vector_list.as_any().downcast_ref::<Float32Array>().map(|float_array| (0..float_array.len())
                                 .map(|j| float_array.value(j))
-                                .collect(),
-                        )
-                    } else {
-                        None
-                    }
+                                .collect())
                 } else {
                     None
                 }
@@ -752,7 +746,7 @@ impl LanceDataStore {
             serde_json::Value::String(document.content.clone())
         };
 
-        let mut node = Node::with_id(node_id, content_value);
+        let mut node = Node::with_id(node_id, content_value, "text".to_string());
 
         if let Some(ref metadata_str) = document.metadata {
             if let Ok(metadata) = serde_json::from_str::<Value>(metadata_str) {
@@ -1289,13 +1283,6 @@ impl DataStore for LanceDataStore {
     }
 }
 
-// Add base64 dependency to Cargo.toml
-mod base64 {
-    pub fn encode(data: &[u8]) -> String {
-        // Placeholder - would use actual base64 crate
-        format!("base64_encoded_{}_bytes", data.len())
-    }
-}
 
 #[cfg(test)]
 mod tests {

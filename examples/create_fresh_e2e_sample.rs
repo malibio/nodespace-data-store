@@ -36,8 +36,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        node_type: "date".to_string(),
+        parent_id: None,
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(NodeId::from_string(date_id.clone())), // Points to itself as root
+        root_type: Some("date".to_string()),
     };
 
     // Generate a dummy 384-dimensional embedding
@@ -138,8 +142,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })),
             created_at: today.to_rfc3339(),
             updated_at: today.to_rfc3339(),
+            node_type: node_type.to_string(),
+            parent_id: parent_id.as_ref().map(|id| NodeId::from_string(id.clone())),
             next_sibling: None,
             previous_sibling: None,
+            root_id: Some(NodeId::from_string(date_id.clone())), // All nodes point to date root
+            root_type: Some("date".to_string()),
         };
 
         let embedding = generate_embedding(384);

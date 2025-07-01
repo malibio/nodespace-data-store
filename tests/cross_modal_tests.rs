@@ -356,11 +356,14 @@ async fn test_hierarchical_relationships() -> Result<(), Box<dyn Error>> {
         )
         .await?;
 
-    // Create child node
+    // Create child node with parent relationship
     // NS-85: No metadata for TextNode - hierarchical data handled by data store layer
-    let child_node = Node::new(serde_json::Value::String(
+    let mut child_node = Node::new(serde_json::Value::String(
         "Child section with detailed content".to_string(),
     ));
+    child_node.parent_id = Some(NodeId::from_string(parent_id.clone()));
+    child_node.root_id = Some(NodeId::from_string(parent_id.clone()));
+    child_node.root_type = Some("document".to_string());
 
     data_store
         .store_node_with_embedding(

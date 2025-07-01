@@ -31,8 +31,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        parent_id: None,
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(date_node_id.clone()),
+        root_type: Some("date".to_string()),
     };
 
     let _date_id = data_store.store_node(date_node).await?;
@@ -49,8 +52,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        parent_id: Some(date_node_id.clone()),
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(date_node_id.clone()),
+        root_type: Some("date".to_string()),
     };
 
     let _campaign_id_stored = data_store.store_node(campaign_node).await?;
@@ -67,8 +73,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        parent_id: Some(campaign_id.clone()),
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(date_node_id.clone()),
+        root_type: Some("date".to_string()),
     };
 
     let _desc_id_stored = data_store.store_node(desc_node).await?;
@@ -85,8 +94,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        parent_id: Some(campaign_id.clone()),
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(date_node_id.clone()),
+        root_type: Some("date".to_string()),
     };
 
     let _overview_id_stored = data_store.store_node(overview_node).await?;
@@ -112,8 +124,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             })),
             created_at: today.to_rfc3339(),
             updated_at: today.to_rfc3339(),
+            parent_id: Some(overview_id.clone()),
             next_sibling: None,
             previous_sibling: None,
+            root_id: Some(date_node_id.clone()),
+            root_type: Some("date".to_string()),
         };
 
         let _detail_id_stored = data_store.store_node(detail_node).await?;
@@ -131,8 +146,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        parent_id: Some(campaign_id.clone()),
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(date_node_id.clone()),
+        root_type: Some("date".to_string()),
     };
 
     let _exec_summary_id_stored = data_store.store_node(exec_summary_node).await?;
@@ -148,8 +166,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })),
         created_at: today.to_rfc3339(),
         updated_at: today.to_rfc3339(),
+        parent_id: Some(exec_summary_id.clone()),
         next_sibling: None,
         previous_sibling: None,
+        root_id: Some(date_node_id.clone()),
+        root_type: Some("date".to_string()),
     };
 
     let _exec_content_id_stored = data_store.store_node(exec_content_node).await?;
