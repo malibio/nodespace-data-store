@@ -8,10 +8,12 @@ use std::sync::Arc;
 
 /// Fresh LanceDB schema perfectly aligned with core-types Node (NS-125)
 /// 1:1 mapping between Node fields and LanceDB columns - no conversion complexity
+#[allow(dead_code)]
 pub struct NodeSchema;
 
 impl NodeSchema {
     /// Create Arrow schema that exactly matches core-types Node structure
+    #[allow(dead_code)]
     pub fn create_node_schema() -> Arc<Schema> {
         Arc::new(Schema::new(vec![
             // Perfect 1:1 mapping with Node struct
@@ -108,22 +110,27 @@ impl TryFrom<LanceDocument> for Node {
 
 /// Helper constructors for common node types (NS-125 migration helpers)
 /// Since we can't impl on external Node type, these are standalone functions
+#[allow(dead_code)]
 pub fn create_text_node(content: serde_json::Value) -> Node {
     Node::new("text".to_string(), content)
 }
 
+#[allow(dead_code)]
 pub fn create_date_node(content: serde_json::Value) -> Node {
     Node::new("date".to_string(), content)
 }
 
+#[allow(dead_code)]
 pub fn create_task_node(content: serde_json::Value) -> Node {
     Node::new("task".to_string(), content)
 }
 
+#[allow(dead_code)]
 pub fn create_image_node(content: serde_json::Value) -> Node {
     Node::new("image".to_string(), content)
 }
 
+#[allow(dead_code)]
 pub fn create_project_node(content: serde_json::Value) -> Node {
     Node::new("project".to_string(), content)
 }
