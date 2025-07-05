@@ -36,10 +36,10 @@ pub trait EmbeddingGenerator {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UniversalNode {
     pub id: String,
-    pub node_type: String, // "text", "date", "task", "customer", "project", etc.
+    pub r#type: String, // "text", "date", "task", "customer", "project", etc.
     pub content: String,
 
-    // Multi-level embeddings for NS-94
+    // Multi-level embeddings for advanced search
     pub individual_vector: Vec<f32>, // Individual content embedding (384-dim)
     pub contextual_vector: Option<Vec<f32>>, // Context-aware embedding (384-dim)
     pub hierarchical_vector: Option<Vec<f32>>, // Hierarchical path embedding (384-dim)
@@ -51,12 +51,13 @@ pub struct UniversalNode {
 
     // JSON-based relationships for entity connections
     pub parent_id: Option<String>,
+    pub before_sibling_id: Option<String>, // Node that comes after this one (backward linking)
     pub children_ids: Vec<String>,
     pub mentions: Vec<String>, // References to other entities
 
-    // NS-115: Root hierarchy optimization for efficient single-query retrieval
+    // Root hierarchy optimization for efficient single-query retrieval
     pub root_id: Option<String>, // Points to hierarchy root (indexed for O(1) queries)
-    // NS-125: root_type field removed - use node_type for categorization
+    // Legacy root_type field removed - use node_type for categorization
 
     pub created_at: String, // ISO 8601 timestamp
     pub updated_at: String,
@@ -142,11 +143,11 @@ impl LanceDataStore {
         Ok(())
     }
 
-    /// Create the Universal Document Schema with NS-115 root hierarchy optimization
+    /// Create the Universal Document Schema with root hierarchy optimization
     fn create_universal_schema(&self) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
-            Field::new("node_type", DataType::Utf8, false),
+            Field::new("type", DataType::Utf8, false),
             Field::new("content", DataType::Utf8, false),
             // Backward compatibility vector field - FixedSizeList of Float32 for LanceDB vector indexing
             Field::new(
@@ -158,6 +159,7 @@ impl LanceDataStore {
                 false,
             ),
             Field::new("parent_id", DataType::Utf8, true), // Nullable
+            Field::new("before_sibling_id", DataType::Utf8, true), // Nullable
             // Children IDs - List of String (nullable for empty lists)
             Field::new(
                 "children_ids",
@@ -170,9 +172,9 @@ impl LanceDataStore {
                 DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
                 true,
             ),
-            // NS-115: Root hierarchy optimization fields for efficient O(1) queries
+            // Root hierarchy optimization fields for efficient O(1) queries
             Field::new("root_id", DataType::Utf8, true), // Nullable - indexed for fast filtering
-            // NS-125: root_type field removed
+            // root_type field removed
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
             Field::new("metadata", DataType::Utf8, true), // Nullable JSON string
@@ -207,10 +209,11 @@ impl LanceDataStore {
                 Arc::new(StringArray::from(Vec::<String>::new())), // content
                 Arc::new(empty_vectors),                           // vector
                 Arc::new(StringArray::from(Vec::<Option<String>>::new())), // parent_id
+                Arc::new(StringArray::from(Vec::<Option<String>>::new())), // before_sibling_id
                 Arc::new(ListBuilder::new(StringBuilder::new()).finish()), // children_ids
                 Arc::new(ListBuilder::new(StringBuilder::new()).finish()), // mentions
-                Arc::new(StringArray::from(Vec::<Option<String>>::new())), // root_id (NS-115)
-                // NS-125: root_type column removed
+                Arc::new(StringArray::from(Vec::<Option<String>>::new())), // root_id
+                // root_type column removed
                 Arc::new(StringArray::from(Vec::<String>::new())), // created_at
                 Arc::new(StringArray::from(Vec::<String>::new())), // updated_at
                 Arc::new(StringArray::from(Vec::<Option<String>>::new())), // metadata
@@ -258,16 +261,8 @@ impl LanceDataStore {
     fn node_to_universal(&self, node: Node, embedding: Option<Vec<f32>>) -> UniversalNode {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Infer node type from content or metadata
-        let node_type = if let Some(metadata) = &node.metadata {
-            if let Some(node_type) = metadata.get("node_type").and_then(|v| v.as_str()) {
-                node_type.to_string()
-            } else {
-                "text".to_string() // Default type
-            }
-        } else {
-            "text".to_string()
-        };
+        // Use the actual node type from the Node struct
+        let node_type = node.r#type.clone();
 
         // Extract relationships from Node fields and metadata
         // Prefer Node.parent_id field over metadata for direct field access
@@ -307,7 +302,7 @@ impl LanceDataStore {
             })
             .unwrap_or_default();
 
-        // NS-115: Extract root hierarchy optimization fields
+        // Extract root hierarchy optimization fields
         // Extract root hierarchy fields from Node fields and metadata
         // Prefer Node fields over metadata for direct field access
         let root_id = node.root_id.as_ref().map(|id| id.to_string()).or_else(|| {
@@ -318,7 +313,7 @@ impl LanceDataStore {
                 .map(|s| s.to_string())
         });
 
-        // NS-125: root_type removed - use node.r#type instead
+        // root_type removed - use node.r#type instead
 
         // Extract multi-level embeddings from metadata if available
         let default_vector = vec![0.0; self.vector_dimension];
@@ -360,7 +355,7 @@ impl LanceDataStore {
             .and_then(|v| v.as_str())
             .map(|s| s.to_string());
 
-        // NS-85: Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
+        // Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
         // For these node types, hierarchical data should come from parent_id/children_ids fields only
         let simplified_metadata = match node_type.as_str() {
             "text" | "date" => {
@@ -375,7 +370,7 @@ impl LanceDataStore {
 
         UniversalNode {
             id: node.id.to_string(),
-            node_type,
+            r#type: node_type,
             content: match &node.content {
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
@@ -387,10 +382,11 @@ impl LanceDataStore {
             embeddings_generated_at,
             vector: individual_vector, // Backward compatibility
             parent_id,
+            before_sibling_id: node.before_sibling.as_ref().map(|id| id.to_string()),
             children_ids,
             mentions,
-            root_id,   // NS-115: Root hierarchy optimization
-            // NS-125: root_type field removed
+            root_id,   // Root hierarchy optimization
+            // root_type field removed
             created_at: if node.created_at.is_empty() {
                 now.clone()
             } else {
@@ -413,16 +409,8 @@ impl LanceDataStore {
     ) -> UniversalNode {
         let now = chrono::Utc::now().to_rfc3339();
 
-        // Infer node type from content or metadata
-        let node_type = if let Some(metadata) = &node.metadata {
-            if let Some(node_type) = metadata.get("node_type").and_then(|v| v.as_str()) {
-                node_type.to_string()
-            } else {
-                "text".to_string() // Default type
-            }
-        } else {
-            "text".to_string()
-        };
+        // Use the actual node type from the Node struct
+        let node_type = node.r#type.clone();
 
         // Extract relationships from Node fields and metadata
         // Prefer Node.parent_id field over metadata for direct field access
@@ -462,7 +450,7 @@ impl LanceDataStore {
             })
             .unwrap_or_default();
 
-        // NS-115: Extract root hierarchy optimization fields
+        // Extract root hierarchy optimization fields
         // Extract root hierarchy fields from Node fields and metadata
         // Prefer Node fields over metadata for direct field access
         let root_id = node.root_id.as_ref().map(|id| id.to_string()).or_else(|| {
@@ -473,9 +461,9 @@ impl LanceDataStore {
                 .map(|s| s.to_string())
         });
 
-        // NS-125: root_type removed - use node.r#type instead
+        // root_type removed - use node.r#type instead
 
-        // NS-85: Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
+        // Simplify metadata for TextNode and DateNode to eliminate redundant hierarchical data
         // For these node types, hierarchical data should come from parent_id/children_ids fields only
         let simplified_metadata = match node_type.as_str() {
             "text" | "date" => {
@@ -490,7 +478,7 @@ impl LanceDataStore {
 
         UniversalNode {
             id: node.id.to_string(),
-            node_type,
+            r#type: node_type,
             content: match &node.content {
                 serde_json::Value::String(s) => s.clone(),
                 other => other.to_string(),
@@ -502,10 +490,11 @@ impl LanceDataStore {
             embeddings_generated_at: Some(embeddings.generated_at.to_rfc3339()),
             vector: embeddings.individual, // Backward compatibility
             parent_id,
+            before_sibling_id: node.before_sibling.as_ref().map(|id| id.to_string()),
             children_ids,
             mentions,
-            root_id,   // NS-115: Root hierarchy optimization
-            // NS-125: root_type field removed
+            root_id,   // Root hierarchy optimization
+            // root_type field removed
             created_at: if node.created_at.is_empty() {
                 now.clone()
             } else {
@@ -532,11 +521,12 @@ impl LanceDataStore {
 
         // Extract simple fields
         let ids: Vec<String> = nodes.iter().map(|n| n.id.clone()).collect();
-        let node_types: Vec<String> = nodes.iter().map(|n| n.node_type.clone()).collect();
+        let node_types: Vec<String> = nodes.iter().map(|n| n.r#type.clone()).collect();
         let contents: Vec<String> = nodes.iter().map(|n| n.content.clone()).collect();
         let parent_ids: Vec<Option<String>> = nodes.iter().map(|n| n.parent_id.clone()).collect();
-        let root_ids: Vec<Option<String>> = nodes.iter().map(|n| n.root_id.clone()).collect(); // NS-115
-        // NS-125: root_type field removed
+        let before_sibling_ids: Vec<Option<String>> = nodes.iter().map(|n| n.before_sibling_id.clone()).collect();
+        let root_ids: Vec<Option<String>> = nodes.iter().map(|n| n.root_id.clone()).collect();
+        // root_type field removed
         let created_ats: Vec<String> = nodes.iter().map(|n| n.created_at.clone()).collect();
         let updated_ats: Vec<String> = nodes.iter().map(|n| n.updated_at.clone()).collect();
         let metadatas: Vec<Option<String>> = nodes
@@ -589,7 +579,7 @@ impl LanceDataStore {
         }
         let mentions = mentions_builder.finish();
 
-        // Create RecordBatch with all columns (including NS-115 root optimization fields)
+        // Create RecordBatch with all columns (including root optimization fields)
         let batch = RecordBatch::try_new(
             schema,
             vec![
@@ -598,10 +588,11 @@ impl LanceDataStore {
                 Arc::new(StringArray::from(contents)),
                 Arc::new(vectors), // vector field for LanceDB indexing
                 Arc::new(StringArray::from(parent_ids)),
+                Arc::new(StringArray::from(before_sibling_ids)),
                 Arc::new(children_ids),
                 Arc::new(mentions),
-                Arc::new(StringArray::from(root_ids)), // NS-115: Root hierarchy optimization
-                // NS-125: root_type column removed
+                Arc::new(StringArray::from(root_ids)), // Root hierarchy optimization
+                // root_type column removed
                 Arc::new(StringArray::from(created_ats)),
                 Arc::new(StringArray::from(updated_ats)),
                 Arc::new(StringArray::from(metadatas)),
@@ -724,10 +715,10 @@ impl LanceDataStore {
             .ok_or_else(|| DataStoreError::Arrow("Missing or invalid id column".to_string()))?;
 
         let node_types = batch
-            .column_by_name("node_type")
+            .column_by_name("type")
             .and_then(|col| col.as_any().downcast_ref::<StringArray>())
             .ok_or_else(|| {
-                DataStoreError::Arrow("Missing or invalid node_type column".to_string())
+                DataStoreError::Arrow("Missing or invalid type column".to_string())
             })?;
 
         let contents = batch
@@ -780,6 +771,17 @@ impl LanceDataStore {
             // Extract optional fields
             let parent_id = batch
                 .column_by_name("parent_id")
+                .and_then(|col| col.as_any().downcast_ref::<StringArray>())
+                .and_then(|arr| {
+                    if arr.is_null(i) {
+                        None
+                    } else {
+                        Some(arr.value(i).to_string())
+                    }
+                });
+
+            let before_sibling_id = batch
+                .column_by_name("before_sibling_id")
                 .and_then(|col| col.as_any().downcast_ref::<StringArray>())
                 .and_then(|arr| {
                     if arr.is_null(i) {
@@ -858,7 +860,7 @@ impl LanceDataStore {
                 vec![]
             };
 
-            // NS-115: Extract root hierarchy optimization fields
+            // Extract root hierarchy optimization fields
             let root_id = batch
                 .column_by_name("root_id")
                 .and_then(|col| col.as_any().downcast_ref::<StringArray>())
@@ -870,11 +872,11 @@ impl LanceDataStore {
                     }
                 });
 
-            // NS-125: root_type field removed
+            // root_type field removed
 
             let node = UniversalNode {
                 id,
-                node_type,
+                r#type: node_type,
                 content,
                 individual_vector: vector.clone(),
                 contextual_vector: None,
@@ -883,10 +885,11 @@ impl LanceDataStore {
                 embeddings_generated_at: None,
                 vector,
                 parent_id,
+                before_sibling_id,
                 children_ids,
                 mentions,
-                root_id,   // NS-115: Root hierarchy optimization
-                // NS-125: root_type field removed
+                root_id,   // Root hierarchy optimization
+                // root_type field removed
                 created_at,
                 updated_at,
                 metadata,
@@ -896,6 +899,29 @@ impl LanceDataStore {
         }
 
         Ok(nodes)
+    }
+
+    /// Extract distance scores from LanceDB query results
+    fn extract_distances_from_batch(&self, batch: &RecordBatch) -> Result<Vec<f32>, DataStoreError> {
+        // LanceDB typically returns distances in a column named "_distance"
+        let distances = batch
+            .column_by_name("_distance")
+            .and_then(|col| col.as_any().downcast_ref::<arrow_array::Float32Array>())
+            .ok_or_else(|| {
+                DataStoreError::Arrow("Missing or invalid _distance column in search results".to_string())
+            })?;
+
+        let mut distance_values = Vec::new();
+        for i in 0..distances.len() {
+            let distance = if distances.is_null(i) {
+                f32::INFINITY // Treat null distances as infinite (no similarity)
+            } else {
+                distances.value(i)
+            };
+            distance_values.push(distance);
+        }
+
+        Ok(distance_values)
     }
 
     /// Vector similarity search using Arrow storage
@@ -926,13 +952,25 @@ impl LanceDataStore {
             let mut results = Vec::new();
             for batch in batches {
                 let universal_nodes = self.extract_nodes_from_batch(&batch)?;
+                let distances = self.extract_distances_from_batch(&batch)?;
 
-                for universal_node in universal_nodes {
-                    // LanceDB provides native distance scores through the query system
-                    // For vector similarity search, LanceDB handles scoring internally
+                for (i, universal_node) in universal_nodes.into_iter().enumerate() {
                     let node = self.universal_to_node(universal_node);
-                    // Use a default score since LanceDB handles ranking
-                    results.push((node, 1.0));
+                    
+                    // Convert LanceDB distance to similarity score
+                    // LanceDB returns squared L2 distances, convert to cosine similarity (0-1 range)
+                    let distance = distances.get(i).copied().unwrap_or(f32::INFINITY);
+                    let similarity = if distance.is_finite() && distance >= 0.0 {
+                        // Convert distance to similarity: closer distances = higher similarity
+                        // For normalized vectors, squared L2 distance relates to cosine similarity as:
+                        // cosine_similarity = 1 - (squared_l2_distance / 2)
+                        let cosine_sim = 1.0 - (distance / 2.0);
+                        cosine_sim.clamp(0.0, 1.0) // Clamp to [0, 1]
+                    } else {
+                        0.0 // Invalid distance = zero similarity
+                    };
+                    
+                    results.push((node, similarity));
                 }
             }
 
@@ -1007,15 +1045,15 @@ impl LanceDataStore {
     }
 
     /// Convert UniversalNode back to NodeSpace Node
-    /// NS-85: For TextNode and DateNode, keep metadata empty to maintain simplified approach
+    /// For TextNode and DateNode, keep metadata empty to maintain simplified approach
     /// For other node types, preserve their type-specific metadata
     fn universal_to_node(&self, universal: UniversalNode) -> Node {
         let content = serde_json::Value::String(universal.content);
 
-        // NS-85: Determine if this is a simplified node type (text/date) that should have empty metadata
-        let final_metadata = match universal.node_type.as_str() {
+        // Determine if this is a simplified node type (text/date) that should have empty metadata
+        let final_metadata = match universal.r#type.as_str() {
             "text" | "date" => {
-                // For text and date nodes: Keep metadata empty/null as per NS-85
+                // For text and date nodes: Keep metadata empty/null for simplified approach
                 // Hierarchical data is maintained in parent_id/children_ids fields in UniversalNode
                 // and will be computed by core-logic layer when needed
                 None
@@ -1026,7 +1064,7 @@ impl LanceDataStore {
                 let mut metadata = universal.metadata.unwrap_or_else(|| serde_json::json!({}));
 
                 // Only add node_type for non-simplified nodes
-                metadata["node_type"] = serde_json::Value::String(universal.node_type.clone());
+                metadata["node_type"] = serde_json::Value::String(universal.r#type.clone());
 
                 // For non-simplified nodes, we can still include hierarchical data in metadata
                 // for backwards compatibility, but it should be computed from the canonical source
@@ -1058,13 +1096,14 @@ impl LanceDataStore {
 
         Node {
             id: NodeId::from_string(universal.id),
-            r#type: universal.node_type,
+            r#type: universal.r#type,
             content,
             metadata: final_metadata,
             created_at: universal.created_at,
             updated_at: universal.updated_at,
             parent_id: universal.parent_id.map(NodeId::from_string),
-            next_sibling: None,
+            before_sibling: universal.before_sibling_id.map(NodeId::from_string),
+            next_sibling: None, // TODO: Map from before_sibling_id when core-types adds before_sibling field
             root_id: universal.root_id.map(NodeId::from_string),
         }
     }
@@ -1309,12 +1348,12 @@ impl DataStore for LanceDataStore {
         self.search_similar_nodes(embedding, limit).await
     }
 
-    // NEW: Cross-modal search methods for NS-81
+    // Cross-modal search methods
     async fn create_image_node(&self, image_node: ImageNode) -> NodeSpaceResult<String> {
         // Convert ImageNode to UniversalNode format
         let universal_node = UniversalNode {
             id: image_node.id.clone(),
-            node_type: "image".to_string(),
+            r#type: "image".to_string(),
             content: image_node
                 .metadata
                 .description
@@ -1326,10 +1365,11 @@ impl DataStore for LanceDataStore {
             embeddings_generated_at: None,
             vector: image_node.embedding,
             parent_id: None,
+            before_sibling_id: None,
             children_ids: vec![],
             mentions: vec![],
-            root_id: None,   // NS-115: Root hierarchy optimization
-            // NS-125: root_type field removed
+            root_id: None,   // Root hierarchy optimization
+            // root_type field removed
             created_at: image_node.created_at.to_rfc3339(),
             updated_at: image_node.created_at.to_rfc3339(),
             metadata: Some(serde_json::json!({
@@ -1446,7 +1486,7 @@ impl DataStore for LanceDataStore {
 
         for universal_node in universal_nodes {
             // Filter by node types
-            if !type_filters.is_empty() && !type_filters.contains(&universal_node.node_type) {
+            if !type_filters.is_empty() && !type_filters.contains(&universal_node.r#type) {
                 continue;
             }
 
@@ -1507,7 +1547,7 @@ impl DataStore for LanceDataStore {
 
             // Cross-modal bonus for image-text combinations
             let cross_modal_score =
-                if config.enable_cross_modal && universal_node.node_type == "image" {
+                if config.enable_cross_modal && universal_node.r#type == "image" {
                     Some(0.9) // Boost for cross-modal queries
                 } else {
                     None
@@ -1541,7 +1581,7 @@ impl DataStore for LanceDataStore {
         Ok(results)
     }
 
-    // NEW: Multi-level embedding methods for NS-94
+    // Multi-level embedding methods
     async fn store_node_with_multi_embeddings(
         &self,
         node: Node,
@@ -1741,7 +1781,7 @@ impl DataStore for LanceDataStore {
         Ok(results)
     }
 
-    // NS-115: Implement DataStore trait methods for root-based hierarchy queries
+    // Implement DataStore trait methods for root-based hierarchy queries
     async fn get_nodes_by_root(&self, root_id: &NodeId) -> NodeSpaceResult<Vec<Node>> {
         // Direct delegation to the implementation method
         self.get_nodes_by_root_internal(root_id).await
@@ -1750,16 +1790,16 @@ impl DataStore for LanceDataStore {
     async fn get_nodes_by_root_and_type(
         &self,
         root_id: &NodeId,
-        node_type: &str,
+        r#type: &str,
     ) -> NodeSpaceResult<Vec<Node>> {
         // Direct delegation to the implementation method
-        self.get_nodes_by_root_and_type_internal(root_id, node_type)
+        self.get_nodes_by_root_and_type_internal(root_id, r#type)
             .await
     }
 }
 
 impl LanceDataStore {
-    /// NS-115: Get all nodes under a specific root with single indexed query
+    /// Get all nodes under a specific root with single indexed query
     /// This is the core optimization that replaces multiple O(N) database scans
     /// with a single O(1) LanceDB indexed filter operation.
     ///
@@ -1784,12 +1824,12 @@ impl LanceDataStore {
         Ok(matching_nodes)
     }
 
-    /// NS-115: Get typed nodes by root for specialized queries
+    /// Get typed nodes by root for specialized queries
     /// Combines root filtering with node type filtering for optimal performance
     pub async fn get_nodes_by_root_and_type_internal(
         &self,
         root_id: &NodeId,
-        node_type: &str,
+        r#type: &str,
     ) -> NodeSpaceResult<Vec<Node>> {
         // For now, use the existing query and filter in memory
         // TODO: Replace with native LanceDB filter once filter API is working
@@ -1800,7 +1840,7 @@ impl LanceDataStore {
         for universal_node in all_nodes {
             // Check both root_id and node_type match
             if let Some(ref node_root_id) = universal_node.root_id {
-                if node_root_id == &root_id_str && universal_node.node_type == node_type {
+                if node_root_id == &root_id_str && universal_node.r#type == r#type {
                     let node = self.universal_to_node(universal_node);
                     matching_nodes.push(node);
                 }
@@ -1810,7 +1850,7 @@ impl LanceDataStore {
         Ok(matching_nodes)
     }
 
-    /// NS-115: Create composite indexes for hierarchy query optimization
+    /// Create composite indexes for hierarchy query optimization
     /// This implements the performance strategy from your architectural recommendations
     pub async fn create_hierarchy_indexes(&self) -> NodeSpaceResult<()> {
         let table_guard = self.table.read().await;
@@ -1914,7 +1954,7 @@ impl LanceDataStore {
         for universal_node in universal_nodes {
             // Apply node type filter if specified
             if let Some(ref filter_type) = node_type_filter {
-                if &universal_node.node_type != filter_type {
+                if &universal_node.r#type != filter_type {
                     continue;
                 }
             }
@@ -1948,4 +1988,46 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
     }
 
     dot_product / (norm_a * norm_b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::tempdir;
+
+    async fn create_test_store() -> LanceDataStore {
+        let temp_dir = tempdir().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        LanceDataStore::new(db_path.to_str().unwrap()).await.unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_before_sibling_persistence() {
+        let store = create_test_store().await;
+
+        let node_a = Node::new("text".to_string(), serde_json::json!({"text": "Node A"}));
+        let node_b = Node::new("text".to_string(), serde_json::json!({"text": "Node B"}))
+            .with_before_sibling(Some(node_a.id.clone()));
+
+        // Store both nodes
+        store.store_node(node_a.clone()).await.unwrap();
+        store.store_node(node_b.clone()).await.unwrap();
+
+        // Retrieve and verify sibling relationship preserved
+        let retrieved_b = store.get_node(&node_b.id).await.unwrap().unwrap();
+        assert_eq!(retrieved_b.before_sibling, Some(node_a.id));
+    }
+
+    #[tokio::test]
+    async fn test_null_before_sibling_handling() {
+        let store = create_test_store().await;
+
+        let node = Node::new("text".to_string(), serde_json::json!({"text": "Node"}));
+        // No before_sibling set (should be None)
+
+        store.store_node(node.clone()).await.unwrap();
+        let retrieved = store.get_node(&node.id).await.unwrap().unwrap();
+
+        assert_eq!(retrieved.before_sibling, None);
+    }
 }

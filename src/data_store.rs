@@ -41,7 +41,7 @@ pub trait DataStore {
         limit: usize,
     ) -> NodeSpaceResult<Vec<(Node, f32)>>;
 
-    // NEW: Multi-level embedding methods for NS-94
+    // NEW: Multi-level embedding methods for 
     async fn store_node_with_multi_embeddings(
         &self,
         node: Node,
@@ -81,7 +81,7 @@ pub trait DataStore {
         config: HybridSearchConfig,
     ) -> NodeSpaceResult<Vec<SearchResult>>;
 
-    // Existing cross-modal search methods for NS-81
+    // Existing cross-modal search methods for 
     async fn create_image_node(&self, image_node: ImageNode) -> NodeSpaceResult<String>;
     async fn get_image_node(&self, id: &str) -> NodeSpaceResult<Option<ImageNode>>;
     async fn search_multimodal(
@@ -95,7 +95,7 @@ pub trait DataStore {
         config: &HybridSearchConfig,
     ) -> NodeSpaceResult<Vec<SearchResult>>;
 
-    // NS-115: Root-based efficient hierarchy queries to replace O(N) scans
+    // Root-based efficient hierarchy queries to replace O(N) scans
     async fn get_nodes_by_root(&self, root_id: &NodeId) -> NodeSpaceResult<Vec<Node>>;
     async fn get_nodes_by_root_and_type(
         &self,
@@ -104,7 +104,7 @@ pub trait DataStore {
     ) -> NodeSpaceResult<Vec<Node>>;
 }
 
-// Cross-modal types for NS-81 implementation
+// Cross-modal types for implementation
 #[derive(Debug, Clone)]
 pub struct ImageNode {
     pub id: String,
@@ -162,7 +162,7 @@ pub struct RelevanceFactors {
     pub cross_modal_score: Option<f32>,
 }
 
-// NEW: Multi-level embedding types for NS-94
+// NEW: Multi-level embedding types for 
 #[derive(Debug, Clone)]
 pub struct MultiLevelEmbeddings {
     pub individual: Vec<f32>,            // Node content embedding

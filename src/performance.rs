@@ -163,7 +163,7 @@ impl PerformanceMonitor {
 
     /// Start timing an operation
     pub fn start_operation(&self, operation_type: OperationType) -> OperationTimer {
-        OperationTimer::new(operation_type, Arc::clone(&self.metrics), &self.config)
+        OperationTimer::new(operation_type, Arc::clone(&self.metrics), Arc::clone(&self.aggregated), &self.config)
     }
 
     /// Record a completed operation manually
@@ -375,6 +375,7 @@ pub struct OperationTimer {
     operation_type: OperationType,
     start_time: Instant,
     metrics: Arc<Mutex<Vec<OperationMetric>>>,
+    aggregated: Arc<Mutex<HashMap<OperationType, AggregatedMetrics>>>,
     _config: PerformanceConfig,
     metadata: HashMap<String, String>,
 }
@@ -383,12 +384,14 @@ impl OperationTimer {
     fn new(
         operation_type: OperationType,
         metrics: Arc<Mutex<Vec<OperationMetric>>>,
+        aggregated: Arc<Mutex<HashMap<OperationType, AggregatedMetrics>>>,
         config: &PerformanceConfig,
     ) -> Self {
         Self {
             operation_type,
             start_time: Instant::now(),
             metrics,
+            aggregated,
             _config: config.clone(),
             metadata: HashMap::new(),
         }
@@ -413,8 +416,11 @@ impl OperationTimer {
     /// Complete the operation with custom result
     pub fn complete_with_result(self, success: bool, error_message: Option<String>) {
         let duration = self.start_time.elapsed();
+        let operation_type = self.operation_type;
+        let metrics = self.metrics.clone();
+        let aggregated = self.aggregated.clone();
         let metric = OperationMetric {
-            operation_type: self.operation_type,
+            operation_type,
             duration_ms: duration.as_millis() as u64,
             timestamp: Utc::now(),
             success,
@@ -422,9 +428,75 @@ impl OperationTimer {
             metadata: self.metadata,
         };
 
-        if let Ok(mut metrics) = self.metrics.lock() {
-            metrics.push(metric);
+        if let Ok(mut metrics_lock) = metrics.lock() {
+            metrics_lock.push(metric);
         }
+
+        // Update aggregated metrics
+        update_aggregated_metrics_internal(&metrics, &aggregated, operation_type);
+    }
+
+}
+
+/// Internal function to update aggregated metrics
+fn update_aggregated_metrics_internal(
+    metrics: &Arc<Mutex<Vec<OperationMetric>>>,
+    aggregated: &Arc<Mutex<HashMap<OperationType, AggregatedMetrics>>>,
+    operation_type: OperationType,
+) {
+    let metrics = metrics.lock().unwrap();
+    let operation_metrics: Vec<&OperationMetric> = metrics
+        .iter()
+        .filter(|m| m.operation_type == operation_type)
+        .collect();
+
+    if operation_metrics.is_empty() {
+        return;
+    }
+
+    let total_operations = operation_metrics.len() as u64;
+    let successful_operations = operation_metrics.iter().filter(|m| m.success).count() as u64;
+    let failed_operations = total_operations - successful_operations;
+    let error_rate = (failed_operations as f64 / total_operations as f64) * 100.0;
+
+    let durations: Vec<u64> = operation_metrics.iter().map(|m| m.duration_ms).collect();
+    let avg_duration_ms = durations.iter().sum::<u64>() as f64 / durations.len() as f64;
+    let min_duration_ms = *durations.iter().min().unwrap_or(&0);
+    let max_duration_ms = *durations.iter().max().unwrap_or(&0);
+
+    // Calculate percentiles
+    let mut sorted_durations = durations.clone();
+    sorted_durations.sort_unstable();
+    let p95_index = (sorted_durations.len() as f64 * 0.95) as usize;
+    let p99_index = (sorted_durations.len() as f64 * 0.99) as usize;
+    let p95_duration_ms = sorted_durations.get(p95_index).copied().unwrap_or(0);
+    let p99_duration_ms = sorted_durations.get(p99_index).copied().unwrap_or(0);
+
+    // Calculate operations per second (based on recent 1 minute)
+    let one_minute_ago = Utc::now() - chrono::Duration::minutes(1);
+    let recent_operations = operation_metrics
+        .iter()
+        .filter(|m| m.timestamp > one_minute_ago)
+        .count() as f64;
+    let operations_per_second = recent_operations / 60.0;
+
+    let aggregated_metric = AggregatedMetrics {
+        operation_type,
+        total_operations,
+        successful_operations,
+        failed_operations,
+        avg_duration_ms,
+        min_duration_ms,
+        max_duration_ms,
+        p95_duration_ms,
+        p99_duration_ms,
+        operations_per_second,
+        error_rate,
+        last_updated: Utc::now(),
+    };
+
+    if let Ok(mut aggregated_lock) = aggregated.lock() {
+        aggregated_lock.insert(operation_type, aggregated_metric);
     }
 }
 

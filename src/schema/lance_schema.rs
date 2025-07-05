@@ -1,12 +1,12 @@
 // LanceDB schema definitions perfectly aligned with core-types Node structure
-// Fresh schema for NS-125 breaking changes - no migration needed
+// Fresh schema for breaking changes - no migration needed
 
 use arrow_schema::{DataType, Field, Schema};
 use nodespace_core_types::{Node, NodeId};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-/// Fresh LanceDB schema perfectly aligned with core-types Node (NS-125)
+/// Fresh LanceDB schema perfectly aligned with core-types Node ()
 /// 1:1 mapping between Node fields and LanceDB columns - no conversion complexity
 #[allow(dead_code)]
 pub struct NodeSchema;
@@ -24,8 +24,8 @@ impl NodeSchema {
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
             Field::new("parent_id", DataType::Utf8, true),
-            Field::new("next_sibling", DataType::Utf8, true),   // Unidirectional only
-            Field::new("root_id", DataType::Utf8, true),        // NS-115 hierarchy optimization
+            Field::new("before_sibling_id", DataType::Utf8, true), // Backward linking for atomic insertions
+            Field::new("root_id", DataType::Utf8, true),        // hierarchy optimization
             
             // Vector embedding support (optional)
             Field::new(
@@ -53,8 +53,8 @@ pub struct LanceDocument {
     pub created_at: String,
     pub updated_at: String,
     pub parent_id: Option<String>,
-    pub next_sibling: Option<String>, // Unidirectional only (no previous_sibling)
-    pub root_id: Option<String>,     // NS-115 hierarchy optimization
+    pub before_sibling_id: Option<String>, // Backward linking for atomic insertions
+    pub root_id: Option<String>,     // hierarchy optimization
     
     // Vector embedding support
     pub vector: Option<Vec<f32>>,    // 384-dim FastEmbed vectors
@@ -72,7 +72,7 @@ impl From<Node> for LanceDocument {
             created_at: node.created_at,
             updated_at: node.updated_at,
             parent_id: node.parent_id.map(|id| id.to_string()),
-            next_sibling: node.next_sibling.map(|id| id.to_string()),
+            before_sibling_id: None, // TODO: Node struct missing before_sibling field - coordinate with core-types team
             root_id: node.root_id.map(|id| id.to_string()),
             vector: None,        // Set by embedding service
             vector_model: None,  // Set by embedding service
@@ -101,14 +101,14 @@ impl TryFrom<LanceDocument> for Node {
         node.created_at = doc.created_at;
         node.updated_at = doc.updated_at;
         node.parent_id = doc.parent_id.map(NodeId::from_string);
-        node.next_sibling = doc.next_sibling.map(NodeId::from_string);
+        node.next_sibling = None; // TODO: Map from before_sibling_id when core-types adds before_sibling field
         node.root_id = doc.root_id.map(NodeId::from_string);
 
         Ok(node)
     }
 }
 
-/// Helper constructors for common node types (NS-125 migration helpers)
+/// Helper constructors for common node types (migration helpers)
 /// Since we can't impl on external Node type, these are standalone functions
 #[allow(dead_code)]
 pub fn create_text_node(content: serde_json::Value) -> Node {

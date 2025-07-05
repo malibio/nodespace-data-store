@@ -68,7 +68,7 @@ pub enum VectorIndexType {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UniversalDocument {
     pub id: String,
-    pub node_type: String,
+    pub r#type: String,
     pub content: String,
     pub content_type: String,
     pub content_size_bytes: Option<u64>,
@@ -79,8 +79,7 @@ pub struct UniversalDocument {
     pub parent_id: Option<String>,
     pub children_ids: Vec<String>,
     pub mentions: Vec<String>,
-    pub next_sibling: Option<String>,
-    pub previous_sibling: Option<String>,
+    pub before_sibling_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
     // Image-specific fields
@@ -139,7 +138,7 @@ impl LanceDataStore {
     fn create_universal_schema(&self) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
             Field::new("id", DataType::Utf8, false),
-            Field::new("node_type", DataType::Utf8, false),
+            Field::new("type", DataType::Utf8, false),
             Field::new("content", DataType::Utf8, false),
             Field::new("content_type", DataType::Utf8, false),
             Field::new("content_size_bytes", DataType::Utf8, true), // Nullable string
@@ -168,8 +167,7 @@ impl LanceDataStore {
                 DataType::List(Arc::new(Field::new("item", DataType::Utf8, true))),
                 true,
             ),
-            Field::new("next_sibling", DataType::Utf8, true), // Nullable
-            Field::new("previous_sibling", DataType::Utf8, true), // Nullable
+            Field::new("before_sibling_id", DataType::Utf8, true), // Nullable
             Field::new("created_at", DataType::Utf8, false),
             Field::new("updated_at", DataType::Utf8, false),
             // Image-specific fields
@@ -232,7 +230,7 @@ impl LanceDataStore {
 
         let document = UniversalDocument {
             id: node_id.to_string(),
-            node_type: NodeType::Image.to_string(),
+            r#type: NodeType::Image.to_string(),
             content: base64_content,
             content_type: content_type.to_string(),
             content_size_bytes: Some(content.len() as u64),
@@ -245,8 +243,7 @@ impl LanceDataStore {
             parent_id: None,
             children_ids: vec![],
             mentions: vec![],
-            next_sibling: None,
-            previous_sibling: None,
+            before_sibling_id: None,
             created_at: now.clone(),
             updated_at: now.clone(),
             image_alt_text: image_metadata.alt_text,
@@ -380,7 +377,7 @@ impl LanceDataStore {
 
         // Create single-row arrays from document
         let ids = vec![document.id.clone()];
-        let node_types = vec![document.node_type.clone()];
+        let node_types = vec![document.r#type.clone()];
         let contents = vec![document.content.clone()];
         let content_types = vec![document.content_type.clone()];
         let created_ats = vec![document.created_at.clone()];
@@ -392,8 +389,7 @@ impl LanceDataStore {
         let parent_ids = vec![document.parent_id.clone()];
         let vector_models = vec![document.vector_model.clone()];
         let vector_dimensions = vec![document.vector_dimensions];
-        let next_siblings = vec![document.next_sibling.clone()];
-        let previous_siblings = vec![document.previous_sibling.clone()];
+        let before_sibling_ids = vec![document.before_sibling_id.clone()];
         let image_alt_texts = vec![document.image_alt_text.clone()];
         let image_widths = vec![document.image_width];
         let image_heights = vec![document.image_height];
@@ -482,8 +478,7 @@ impl LanceDataStore {
                 Arc::new(StringArray::from(parent_ids)),
                 Arc::new(children_ids_array),
                 Arc::new(mentions_array),
-                Arc::new(StringArray::from(next_siblings)),
-                Arc::new(StringArray::from(previous_siblings)),
+                Arc::new(StringArray::from(before_sibling_ids)),
                 Arc::new(StringArray::from(created_ats)),
                 Arc::new(StringArray::from(updated_ats)),
                 Arc::new(StringArray::from(image_alt_texts)),
@@ -534,10 +529,10 @@ impl LanceDataStore {
             .ok_or_else(|| DataStoreError::Arrow("Missing or invalid id column".to_string()))?;
 
         let node_types = batch
-            .column_by_name("node_type")
+            .column_by_name("type")
             .and_then(|col| col.as_any().downcast_ref::<StringArray>())
             .ok_or_else(|| {
-                DataStoreError::Arrow("Missing or invalid node_type column".to_string())
+                DataStoreError::Arrow("Missing or invalid type column".to_string())
             })?;
 
         let contents = batch
@@ -707,7 +702,7 @@ impl LanceDataStore {
 
             let document = UniversalDocument {
                 id,
-                node_type,
+                r#type: node_type,
                 content,
                 content_type,
                 content_size_bytes,
@@ -718,8 +713,7 @@ impl LanceDataStore {
                 parent_id,
                 children_ids,
                 mentions,
-                next_sibling: None,     // TODO: Extract if needed
-                previous_sibling: None, // TODO: Extract if needed
+                before_sibling_id: None,     // TODO: Extract if needed
                 created_at,
                 updated_at,
                 image_alt_text: None,      // TODO: Extract if needed
@@ -751,7 +745,7 @@ impl LanceDataStore {
             serde_json::Value::String(document.content.clone())
         };
 
-        let mut node = Node::with_id(node_id, document.node_type.clone(), content_value);
+        let mut node = Node::with_id(node_id, document.r#type.clone(), content_value);
 
         if let Some(ref metadata_str) = document.metadata {
             if let Ok(metadata) = serde_json::from_str::<Value>(metadata_str) {
@@ -775,7 +769,7 @@ impl DataStore for LanceDataStore {
             .start_operation(OperationType::CreateNode)
             .with_metadata("node_id".to_string(), node.id.to_string());
 
-        // NS-85: Infer node type and apply metadata simplification
+        // Infer node type and apply metadata simplification
         let inferred_node_type = if let Some(ref metadata) = node.metadata {
             metadata
                 .get("node_type")
@@ -786,7 +780,7 @@ impl DataStore for LanceDataStore {
             "text".to_string()
         };
 
-        // NS-85: Simplify metadata for text and date nodes
+        // Simplify metadata for text and date nodes
         let simplified_metadata = match inferred_node_type.as_str() {
             "text" | "date" => None, // Empty metadata for simplified nodes
             _ => node
@@ -796,7 +790,7 @@ impl DataStore for LanceDataStore {
 
         let document = UniversalDocument {
             id: node.id.to_string(),
-            node_type: inferred_node_type,
+            r#type: inferred_node_type,
             content: node.content.to_string(),
             content_type: ContentType::TextPlain.to_string(),
             content_size_bytes: None,
@@ -807,8 +801,7 @@ impl DataStore for LanceDataStore {
             parent_id: None, // TODO: Extract from Node when available
             children_ids: vec![],
             mentions: vec![], // TODO: Extract from relationships
-            next_sibling: None,
-            previous_sibling: None,
+            before_sibling_id: None,
             created_at: node.created_at.to_string(),
             updated_at: node.updated_at.to_string(),
             image_alt_text: None,
@@ -1072,7 +1065,7 @@ impl DataStore for LanceDataStore {
             .with_metadata("node_id".to_string(), node.id.to_string())
             .with_metadata("has_embedding".to_string(), "true".to_string());
 
-        // NS-85: Apply same metadata simplification logic as store_node
+        // Apply same metadata simplification logic as store_node
         let inferred_node_type = if let Some(ref metadata) = node.metadata {
             metadata
                 .get("node_type")
@@ -1092,7 +1085,7 @@ impl DataStore for LanceDataStore {
 
         let document = UniversalDocument {
             id: node.id.to_string(),
-            node_type: inferred_node_type,
+            r#type: inferred_node_type,
             content: node.content.to_string(),
             content_type: ContentType::TextPlain.to_string(),
             content_size_bytes: None,
@@ -1103,8 +1096,7 @@ impl DataStore for LanceDataStore {
             parent_id: None, // TODO: Extract from Node when available
             children_ids: vec![],
             mentions: vec![],
-            next_sibling: None,
-            previous_sibling: None,
+            before_sibling_id: None,
             created_at: node.created_at.to_string(),
             updated_at: node.updated_at.to_string(),
             image_alt_text: None,
@@ -1201,7 +1193,7 @@ impl DataStore for LanceDataStore {
         Ok(vec![])
     }
 
-    // NEW: Multi-level embedding methods for NS-94 - Stub implementations
+    // NEW: Multi-level embedding methods for - Stub implementations
     async fn store_node_with_multi_embeddings(
         &self,
         _node: Node,
@@ -1270,7 +1262,7 @@ impl DataStore for LanceDataStore {
         Ok(vec![])
     }
 
-    // NS-115: Root-based efficient hierarchy queries
+    // Root-based efficient hierarchy queries
     async fn get_nodes_by_root(&self, _root_id: &NodeId) -> NodeSpaceResult<Vec<Node>> {
         // TODO: Implement get_nodes_by_root for full LanceDB
         // For now, delegate to existing query_nodes as fallback
@@ -1304,7 +1296,7 @@ mod tests {
     fn test_universal_document_serialization() {
         let doc = UniversalDocument {
             id: "test-id".to_string(),
-            node_type: NodeType::Text.to_string(),
+            r#type: NodeType::Text.to_string(),
             content: "test content".to_string(),
             content_type: ContentType::TextPlain.to_string(),
             content_size_bytes: Some(100),
@@ -1315,8 +1307,7 @@ mod tests {
             parent_id: None,
             children_ids: vec![],
             mentions: vec![],
-            next_sibling: None,
-            previous_sibling: None,
+            before_sibling_id: None,
             created_at: Utc::now().to_rfc3339(),
             updated_at: Utc::now().to_rfc3339(),
             image_alt_text: None,

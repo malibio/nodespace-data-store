@@ -1,277 +1,303 @@
 # NodeSpace Data Store Schema Documentation
 
-This document describes the LanceDB Universal Document Schema used by the NodeSpace Data Store, including vector embedding formats and hierarchical organization patterns.
+This document describes the actual LanceDB schema implementation used by the NodeSpace Data Store.
 
 ## Database Configuration
 
 **Database**: LanceDB (High-performance vector database)  
 **Schema**: Universal Document Schema for multimodal data  
-**Storage**: Apache Arrow columnar format with optimized vector indexes  
-**Performance**: Sub-second search times for <2s target requirements
+**Storage**: Apache Arrow columnar format  
+**Default Vector Dimensions**: 384 (configurable)
 
-## Universal Document Schema
+## Core Data Structure
 
-### Core Entity Structure
+### UniversalNode Schema
 
-The Universal Document Schema stores all NodeSpace entities in a single, flexible table structure optimized for vector search and hierarchical relationships.
+The data store uses a single `UniversalNode` structure that maps directly to LanceDB's Arrow columnar storage:
 
 ```rust
 pub struct UniversalNode {
     pub id: String,                    // Unique entity identifier
-    pub node_type: String,            // "text", "image", "date", "task", etc.
-    pub content: String,              // Primary content (text/description)
-    pub vector: Vec<f32>,             // 384 or 512-dimensional embeddings
+    pub r#type: String,               // "text", "image", "date", "task", etc.
+    pub content: String,              // Primary content as string
     
-    // Hierarchical relationships via JSON metadata
-    pub parent_id: Option<String>,    // Direct parent reference
-    pub children_ids: Vec<String>,    // List of child entity IDs
-    pub mentions: Vec<String>,        // Referenced entity connections
+    // Multi-level embedding support
+    pub individual_vector: Vec<f32>,     // Content embedding (384-dim default)
+    pub contextual_vector: Option<Vec<f32>>,    // Context-aware embedding
+    pub hierarchical_vector: Option<Vec<f32>>,  // Hierarchical path embedding
+    pub vector: Vec<f32>,                // Backward compatibility mapping
+    
+    // Embedding metadata
+    pub embedding_model: Option<String>,
+    pub embeddings_generated_at: Option<String>,
+    
+    // Hierarchical relationships
+    pub parent_id: Option<String>,
+    pub before_sibling_id: Option<String>,    // Backward linking
+    pub children_ids: Vec<String>,
+    pub mentions: Vec<String>,               // Cross-references
+    pub root_id: Option<String>,            // Hierarchy optimization
     
     // Temporal tracking
-    pub created_at: String,           // ISO 8601 timestamp
-    pub updated_at: String,           // ISO 8601 timestamp
+    pub created_at: String,              // ISO 8601 timestamp
+    pub updated_at: String,              // ISO 8601 timestamp
     
-    // Flexible metadata for entity-specific fields
+    // Flexible metadata
     pub metadata: Option<serde_json::Value>,
 }
 ```
 
-## Entity Types
+## LanceDB Arrow Schema
 
-### 1. Text Entities (`node_type: "text"`)
+The actual Arrow schema used for LanceDB storage:
 
-Primary content storage with semantic embeddings for search.
-
-**Embedding Dimensions**: 384 (BGE-small-en-v1.5 text embeddings)
-**Content**: Full text content in the `content` field
-**Metadata**: Document structure, titles, sections, depth levels
-
-Example metadata:
-```json
-{
-  "title": "Product Launch Strategy",
-  "parent_id": "2025-06-27",
-  "depth": 1,
-  "section_type": "main_document",
-  "document_type": "strategy"
-}
+```rust
+Schema::new(vec![
+    Field::new("id", DataType::Utf8, false),
+    Field::new("type", DataType::Utf8, false),
+    Field::new("content", DataType::Utf8, false),
+    Field::new("vector", DataType::FixedSizeList(Field::new("item", DataType::Float32, false), 384), false),
+    Field::new("parent_id", DataType::Utf8, true),
+    Field::new("before_sibling_id", DataType::Utf8, true),
+    Field::new("children_ids", DataType::List(Field::new("item", DataType::Utf8, false)), true),
+    Field::new("mentions", DataType::List(Field::new("item", DataType::Utf8, false)), true),
+    Field::new("root_id", DataType::Utf8, true),
+    Field::new("created_at", DataType::Utf8, false),
+    Field::new("updated_at", DataType::Utf8, false),
+    Field::new("metadata", DataType::Utf8, true),  // JSON string
+])
 ```
 
-### 2. Image Entities (`node_type: "image"`)
+## Node Types
 
-Image content with CLIP vision embeddings for cross-modal search.
+### 1. Text Nodes (`r#type: "text"`)
 
-**Embedding Dimensions**: 512 (CLIP vision embeddings)
-**Content**: Image description or filename
-**Metadata**: Contains Base64-encoded image data, EXIF information, dimensions
+**Content**: Text content stored directly in the `content` field  
+**Embeddings**: 384-dimensional vectors (default)  
+**Metadata**: Simplified approach - metadata is cleared for text nodes to reduce storage overhead
 
-Example metadata:
+### 2. Image Nodes (`r#type: "image"`)
+
+**Content**: Image description or filename  
+**Image Data**: Base64-encoded binary data stored in metadata  
+**Embeddings**: Same 384-dimensional vector space  
+**Metadata**: Contains image-specific properties:
+
 ```json
 {
-  "image_data": "iVBORw0KGgoAAAANSUhEUgAA...",
-  "filename": "conference_presentation.jpg",
-  "mime_type": "image/jpeg",
+  "image_data": "base64_encoded_image_data",
+  "filename": "image.jpg",
   "width": 1920,
   "height": 1080,
-  "exif_data": {
-    "camera": "Canon EOS R5",
-    "date": "2025-06-27T10:00:00Z"
-  }
+  "format": "jpeg"
 }
 ```
 
-### 3. Date Entities (`node_type: "date"`)
+### 3. Date Nodes (`r#type: "date"`)
 
-Container entities for organizing content by date with hierarchical structure.
+**Content**: Date representation with description  
+**Purpose**: Container nodes for temporal organization  
+**Metadata**: Simplified approach - metadata is cleared for date nodes
 
-**Content**: Date representation with description
-**Relationships**: Parent to multiple document entities
-**Purpose**: Temporal organization and navigation
+### 4. Other Node Types
 
-Example:
-```json
-{
-  "id": "2025-06-27",
-  "node_type": "date",
-  "content": "📅 2025-06-27 - Product Launch Planning",
-  "children_ids": ["strategy-doc-1", "meeting-notes-1"]
-}
-```
+**Supported Types**: "task", "customer", "project", etc.  
+**Metadata**: Preserved for non-text/date node types  
+**Content**: Type-specific content stored as strings
 
-### 4. Task Entities (`node_type: "task"`)
+## Embedding Architecture
 
-Action items and workflow elements with completion tracking.
+### Single Vector Field
 
-**Content**: Task description and requirements
-**Metadata**: Status, assignee, due dates, priority levels
+All embeddings are stored in the primary `vector` field with configurable dimensions (default: 384).
+
+### Multi-level Embedding Support
+
+The system supports three levels of embeddings:
+
+1. **Individual**: Content-based embedding
+2. **Contextual**: Context-aware embedding (with siblings/parent)
+3. **Hierarchical**: Path-based embedding for hierarchy navigation
+
+Multi-level embeddings are stored in the metadata field and synchronized with the primary vector field.
+
+### Embedding Models
+
+- **Configurable**: No hardcoded model dependencies
+- **Default Dimension**: 384 (FastEmbed/BGE-small-en-v1.5 compatible)
+- **Pluggable**: Via `EmbeddingGenerator` trait
+- **Fallback**: Zero vectors when no embedding provided
 
 ## Hierarchical Relationships
 
 ### Parent-Child Structure
 
-The schema supports multi-level hierarchical organization through JSON-based relationships:
-
-```
-DateNode (2025-06-27)
-├── Main Document (depth: 1)
-│   ├── Section 1 (depth: 2)
-│   │   ├── Subsection A (depth: 3)
-│   │   │   ├── Detail 1 (depth: 4)
-│   │   │   └── Detail 2 (depth: 4)
-│   │   └── Subsection B (depth: 3)
-│   └── Section 2 (depth: 2)
-└── Related Document (depth: 1)
-```
-
-### Relationship Management
+Relationships are managed through JSON-based fields:
 
 - **parent_id**: Direct reference to parent entity
-- **children_ids**: Array of child entity identifiers
-- **mentions**: Cross-references to related entities
-- **depth**: Hierarchical level for navigation (stored in metadata)
+- **children_ids**: Array of child entity identifiers  
+- **before_sibling_id**: Backward linking for sibling navigation
+- **root_id**: Optimization field pointing to hierarchy root
 
-## Vector Search Operations
+### Hierarchy Optimization
 
-### Semantic Search
+The `root_id` field enables efficient hierarchy queries:
 
 ```rust
-// Text similarity search (384-dim BGE embeddings)
-async fn semantic_search_with_embedding(
-    &self,
-    embedding: Vec<f32>,
-    limit: usize,
-) -> NodeSpaceResult<Vec<(Node, f32)>>
+// O(1) root-based queries (filtered in application layer)
+let nodes = data_store.get_nodes_by_root(&root_id).await?;
+let typed_nodes = data_store.get_nodes_by_root_and_type(&root_id, "text").await?;
+```
+
+## Search Operations
+
+### Vector Search
+
+```rust
+// Basic similarity search
+let results = data_store.search_similar_nodes(embedding, limit).await?;
+
+// Multi-level embedding search
+let results = data_store.search_by_individual_embedding(embedding, limit).await?;
+let results = data_store.search_by_contextual_embedding(embedding, limit).await?;
+let results = data_store.search_by_hierarchical_embedding(embedding, limit).await?;
 ```
 
 ### Cross-Modal Search
 
 ```rust
-// Search across text and images
-async fn search_multimodal(
-    &self,
-    query_embedding: Vec<f32>,
-    types: Vec<NodeType>
-) -> NodeSpaceResult<Vec<Node>>
+// Search across node types
+let results = data_store.search_multimodal(
+    query_embedding, 
+    vec![NodeType::Text, NodeType::Image]
+).await?;
 ```
 
 ### Hybrid Search
 
-Combines multiple relevance factors with configurable weights:
-
 ```rust
-pub struct HybridSearchConfig {
-    pub semantic_weight: f64,        // Embedding similarity (0.0-1.0)
-    pub structural_weight: f64,      // Relationship proximity (0.0-1.0)  
-    pub temporal_weight: f64,        // Time-based relevance (0.0-1.0)
-    pub max_results: usize,          // Result limit
-    pub min_similarity_threshold: f64, // Quality threshold
-    pub enable_cross_modal: bool,    // Text↔Image search
-    pub search_timeout_ms: u64,      // Performance limit
-}
-```
-
-**Scoring Algorithm**:
-```
-final_score = (semantic_score × semantic_weight) +
-              (structural_score × structural_weight) +
-              (temporal_score × temporal_weight) +
-              (cross_modal_bonus × 0.1)
+// Weighted search with configurable scoring
+let config = HybridSearchConfig {
+    semantic_weight: 0.7,
+    structural_weight: 0.2,
+    temporal_weight: 0.1,
+    // ... other config options
+};
+let results = data_store.hybrid_multimodal_search(embedding, &config).await?;
 ```
 
 ## Performance Characteristics
 
-### Search Performance
+### Current Implementation
 
-- **Target**: <2 seconds for complex queries
-- **Achieved**: ~100 microseconds for hybrid search
-- **Optimization**: LanceDB native vector operations with Arrow columnar storage
+- **Vector Search**: Native LanceDB operations with cosine similarity
+- **Hierarchy Queries**: Application-level filtering (not indexed)
+- **Text Search**: Content string matching
+- **Batch Operations**: Individual insert/update operations
 
-### Storage Efficiency
+### Optimization Opportunities
 
-- **Columnar format**: Optimized for analytical workloads
-- **Vector indexes**: Approximate nearest neighbor search
-- **Compression**: Arrow format provides efficient encoding
-
-### Scalability
-
-- **Horizontal scaling**: Distributed LanceDB deployment support
-- **Memory efficiency**: Lazy loading and streaming for large datasets
-- **Concurrent access**: Multi-reader, single-writer model
+1. **Indexing**: Implement native LanceDB filtering
+2. **Batch Operations**: Bulk insert/update support
+3. **Connection Pooling**: Multi-connection support
+4. **Caching**: Query result caching
 
 ## Schema Evolution
 
 ### Metadata Flexibility
 
-The `metadata` field supports "ghost properties" for schema evolution:
+The metadata field supports schema evolution through JSON:
 
 ```json
 {
-  "metadata": {
-    // Standard fields
-    "title": "Document Title",
-    "depth": 2,
-    
-    // Future extensions (ghost properties)
-    "ai_generated": true,
-    "quality_score": 0.95,
-    "language": "en-US",
-    "custom_tags": ["important", "review"]
-  }
+  "custom_field": "value",
+  "version": "1.0",
+  "tags": ["important", "reviewed"]
 }
 ```
 
-### Version Compatibility
+### Backward Compatibility
 
-- **Backward compatible**: New metadata fields don't break existing code
-- **Forward compatible**: Unknown fields are preserved during updates
-- **Migration support**: Batch operations for schema updates
+- Multi-level embeddings stored in metadata don't break existing queries
+- Primary vector field maintains compatibility
+- New node types can be added without schema changes
 
 ## Integration Patterns
 
-### Cross-Component Usage
-
-Other NodeSpace components access the data store through the `DataStore` trait:
+### Basic Usage
 
 ```rust
 use nodespace_data_store::{DataStore, LanceDataStore};
 
-// Connect to shared database
-let data_store = LanceDataStore::new("/path/to/shared.db").await?;
+// Initialize with default 384-dimensional vectors
+let data_store = LanceDataStore::new("./data/nodes.db").await?;
 
-// Store with embedding
+// Store node with automatic embedding generation
+let node_id = data_store.store_node(node).await?;
+
+// Store with provided embedding
 let node_id = data_store.store_node_with_embedding(node, embedding).await?;
 
-// Cross-modal search
-let results = data_store.search_multimodal(query_embedding, types).await?;
+// Vector similarity search
+let results = data_store.search_similar_nodes(query_embedding, 10).await?;
 ```
 
-### E2E Testing
+### Custom Vector Dimensions
 
-Sample data is available in shared directory for cross-component testing:
-- **Location**: `/Users/malibio/nodespace/data/lance_db/sample_entry.db`
-- **Content**: Hierarchical Product Launch Campaign Strategy
-- **Structure**: 4 depth levels with realistic business content
-- **Usage**: Load with `cargo run --example load_shared_sample_entry`
+```rust
+// Initialize with custom dimensions
+let data_store = LanceDataStore::with_vector_dimension("./data/nodes.db", 512).await?;
+```
+
+### Multi-level Embeddings
+
+```rust
+use nodespace_data_store::MultiLevelEmbeddings;
+
+let embeddings = MultiLevelEmbeddings {
+    individual: content_embedding,
+    contextual: Some(context_embedding),
+    hierarchical: Some(hierarchy_embedding),
+    embedding_model: Some("bge-small-en-v1.5".to_string()),
+    generated_at: Utc::now(),
+};
+
+let node_id = data_store.store_node_with_multi_embeddings(node, embeddings).await?;
+```
+
+## Testing
+
+The repository includes comprehensive integration tests:
+
+```bash
+# Run all tests
+cargo test
+
+# Test specific functionality
+cargo test test_cross_modal_search
+cargo test test_hierarchical_relationships
+cargo test test_vector_search_functionality
+```
 
 ## Best Practices
 
-### Entity Organization
+### Node Organization
 
-1. **Use DateNodes** for temporal organization
-2. **Maintain depth metadata** for hierarchical navigation
-3. **Preserve markdown structure** in content fields
-4. **Include descriptive titles** in metadata
+1. Use meaningful content in the `content` field for both search and human readability
+2. Store structured data in metadata as JSON
+3. Maintain consistent node types across your application
+4. Use hierarchy optimization with `root_id` for deep tree structures
 
-### Performance Optimization
+### Performance
 
-1. **Batch operations** for bulk inserts
-2. **Filter by node_type** to reduce search space
-3. **Use hybrid search** for complex relevance requirements
-4. **Monitor similarity thresholds** to balance precision and recall
+1. Provide embeddings when storing nodes to avoid fallback to zero vectors
+2. Use appropriate vector dimensions for your use case
+3. Consider batch operations for bulk data loading
+4. Filter by node type when possible to reduce search space
 
 ### Schema Design
 
-1. **Keep content field meaningful** for both humans and search
-2. **Use metadata for structure** rather than content parsing
-3. **Maintain relationship consistency** between parent/child references
-4. **Include temporal information** for time-based queries
+1. Keep the `content` field meaningful for search
+2. Use metadata for structured, type-specific data
+3. Maintain relationship consistency between parent/child references
+4. Include temporal information for time-based queries
